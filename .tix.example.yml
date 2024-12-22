@@ -1,0 +1,17 @@
+---
+repositories:
+  - name: test
+    gitlab_repo: ted-allocate/test-repo-for-tix
+    directory: ~/src/tix/test-repo
+    default_labels: dev-ops
+  - name: test-worktree
+    gitlab_repo: ted-allocate/test-repo-for-tix
+    directory: ~/src/tix/test-repo-worktree
+    default_labels: dev-ops
+    worktree:
+      enabled: true
+      default_branch: main
+  - name: bad
+    directory: ~/src/blah
+    default_labels: dev-ops
+    gitlab_repo: allocate.co/allocate-web-ui
