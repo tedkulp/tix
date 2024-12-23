@@ -28,3 +28,11 @@ pub fn truncate_and_dash_case(input: &str, max_length: usize) -> String {
         .collect::<Vec<&str>>() // Collect into a vector
         .join("-") // Join with dashes
 }
+
+pub fn split_on_comma_and_whitespace(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}

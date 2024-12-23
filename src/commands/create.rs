@@ -8,7 +8,7 @@ use anyhow::Result;
 use git2::{build::CheckoutBuilder, WorktreeAddOptions};
 use inquire::{max_length, required, Select, Text};
 
-pub fn create(cmd: &CreateCommand) -> Result<()> {
+pub async fn create(cmd: &CreateCommand) -> Result<()> {
     let settings = settings::Settings::new()?;
 
     let repo_name = Select::new("Select a repository:", settings.repo_names()?).prompt()?;
@@ -16,6 +16,13 @@ pub fn create(cmd: &CreateCommand) -> Result<()> {
         .get_repo(repo_name)
         .expect("Could not load this repo's config");
     let git_repo = open_repo(repo_config)?;
+
+    if (repo_config.github_repo.is_none() && repo_config.gitlab_repo.is_none())
+        || (repo_config.github_repo.is_some() && repo_config.gitlab_repo.is_some())
+    {
+        panic!("You must specify either a GitHub repo OR a GitLab repo");
+    }
+
     is_repo_clean(&git_repo)?;
 
     let mut title = cmd.title.clone().unwrap_or_default();
@@ -30,9 +37,19 @@ pub fn create(cmd: &CreateCommand) -> Result<()> {
 
     let labels = Text::new("Labels (comma separated):").prompt()?;
 
-    let project = crate::gitlab::GitlabProject::new(repo_config.gitlab_repo.clone());
-    let issue = project.create_issue(title, labels);
-    let branch_name = format!("{}-{}", issue.iid, truncate_and_dash_case(&issue.title, 50));
+    let mut branch_name = String::new();
+
+    if repo_config.gitlab_repo.is_some() {
+        let project = crate::gitlab::GitlabProject::new(repo_config.gitlab_repo.clone().unwrap());
+        let issue = project.create_issue(&title, &labels);
+        branch_name = format!("{}-{}", issue.iid, truncate_and_dash_case(&issue.title, 50));
+    }
+
+    if repo_config.github_repo.is_some() {
+        let project = crate::github::GithubProject::new(repo_config.github_repo.clone().unwrap());
+        let issue = project.create_issue(&title, &labels).await;
+        branch_name = format!("{}-{}", issue.id, truncate_and_dash_case(&issue.title, 50));
+    }
 
     // Lookup the base branch reference
     let base_branch_ref =

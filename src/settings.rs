@@ -22,7 +22,8 @@ pub struct Repository {
     pub default_labels: String,
     pub directory: String,
     pub name: String,
-    pub gitlab_repo: String,
+    pub github_repo: Option<String>,
+    pub gitlab_repo: Option<String>,
     #[serde(default = "default_branch")]
     pub default_branch: String,
     #[serde(default = "default_worktree")]

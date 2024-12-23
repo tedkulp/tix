@@ -18,7 +18,8 @@ pub struct GitlabIssue {
 
 impl GitlabProject {
     pub fn new(project_name: String) -> Self {
-        let client = Gitlab::new("gitlab.com", std::env::var("GITLAB_TOKEN").unwrap()).unwrap();
+        let token = std::env::var("GITLAB_TOKEN").expect("GITLAB_TOKEN env variable is required");
+        let client = Gitlab::new("gitlab.com", token).unwrap();
 
         Self {
             client,
@@ -26,7 +27,7 @@ impl GitlabProject {
         }
     }
 
-    pub fn create_issue(&self, title: String, labels: String) -> GitlabIssue {
+    pub fn create_issue(&self, title: &str, labels: &str) -> GitlabIssue {
         let lbls = labels.split(',').map(|l| l.trim().to_string());
 
         let endpoint = projects::issues::CreateIssue::builder()
