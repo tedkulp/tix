@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-async-std = { version = "1.13.0", features = ["attributes"] }
+async-std = { version = "1.13.0", features = ["attributes", "tokio1"] }
 clap = { version = "4.5.23", features = ["derive"] }
 config = { version = "0.15.4", features = ["yaml"] }
 gitlab = "0.1706.0"

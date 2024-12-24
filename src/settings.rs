@@ -19,7 +19,7 @@ fn default_worktree() -> Worktree {
 #[allow(unused)]
 pub struct Repository {
     #[serde(default)]
-    pub default_labels: String,
+    pub default_labels: Option<String>,
     pub directory: String,
     pub name: String,
     pub github_repo: Option<String>,

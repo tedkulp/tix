@@ -20,7 +20,7 @@ pub async fn create(cmd: &CreateCommand) -> Result<()> {
     if (repo_config.github_repo.is_none() && repo_config.gitlab_repo.is_none())
         || (repo_config.github_repo.is_some() && repo_config.gitlab_repo.is_some())
     {
-        panic!("You must specify either a GitHub repo OR a GitLab repo");
+        panic!("You must specify either a GitHub repo OR a GitLab repo in this project's configuration");
     }
 
     is_repo_clean(&git_repo)?;
@@ -35,7 +35,15 @@ pub async fn create(cmd: &CreateCommand) -> Result<()> {
         println!("Using title: {}", title);
     }
 
-    let labels = Text::new("Labels (comma separated):").prompt()?;
+    let labels = Text::new("Labels (comma separated):")
+        .with_default(
+            repo_config
+                .default_labels
+                .clone()
+                .unwrap_or_default()
+                .as_str(),
+        )
+        .prompt()?;
 
     let mut branch_name = String::new();
 
@@ -48,7 +56,11 @@ pub async fn create(cmd: &CreateCommand) -> Result<()> {
     if repo_config.github_repo.is_some() {
         let project = crate::github::GithubProject::new(repo_config.github_repo.clone().unwrap());
         let issue = project.create_issue(&title, &labels).await;
-        branch_name = format!("{}-{}", issue.id, truncate_and_dash_case(&issue.title, 50));
+        branch_name = format!(
+            "{}-{}",
+            issue.number,
+            truncate_and_dash_case(&issue.title, 50)
+        );
     }
 
     // Lookup the base branch reference

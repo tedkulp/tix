@@ -9,9 +9,11 @@ pub struct GithubProject {
     client: Octocrab,
 }
 
+#[allow(dead_code)]
 pub struct GithubIssue {
     pub id: u64,
     pub title: String,
+    pub number: u64,
 }
 
 impl GithubProject {
@@ -46,6 +48,7 @@ impl GithubProject {
 
         GithubIssue {
             id: issue.id.into_inner(),
+            number: issue.number,
             title: issue.title,
         }
     }
