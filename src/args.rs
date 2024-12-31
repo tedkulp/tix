@@ -15,9 +15,10 @@ pub enum CommandType {
 
 #[derive(Debug, Args)]
 pub struct CreateCommand {
-    /// This is positional
-    // pub name: String,
-
+    /*
+    This is positional
+    pub name: String,
+    */
     /// This is optional
     #[arg(short, long)]
     pub title: Option<String>,

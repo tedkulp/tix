@@ -1,4 +1,4 @@
-use gitlab::api::{projects, Query};
+use gitlab::api::{projects, users, Query};
 use gitlab::Gitlab;
 use serde::Deserialize;
 
@@ -6,6 +6,27 @@ use serde::Deserialize;
 pub struct GitlabProject {
     client: Gitlab,
     name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct GitlabUser {
+    pub id: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct GitlabMilestone {
+    pub id: u64,
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(dead_code)]
+pub struct GitlabGroup {
+    pub id: u64,
+    pub name: String,
+    pub milestones: Vec<GitlabMilestone>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,30 +48,25 @@ impl GitlabProject {
         }
     }
 
+    pub fn current_user(&self) -> GitlabUser {
+        let endpoint = users::CurrentUser::builder().build().unwrap();
+        let user: GitlabUser = endpoint.query(&self.client).unwrap();
+        user
+    }
+
     pub fn create_issue(&self, title: &str, labels: &str) -> GitlabIssue {
         let lbls = labels.split(',').map(|l| l.trim().to_string());
+        let current_user = self.current_user();
 
         let endpoint = projects::issues::CreateIssue::builder()
             .project(self.name.to_string())
             .title(title.to_string())
             .labels(lbls)
+            .assignee_id(current_user.id)
             .build()
             .unwrap();
 
         let issue: GitlabIssue = endpoint.query(&self.client).unwrap();
         issue
     }
-
-    // pub fn get_project(
-    //     &self,
-    //     project_name: &str,
-    // ) -> Result<_, gitlab::api::ApiError<gitlab::RestError>> {
-    //     let endpoint = projects::Project::builder()
-    //         .project(project_name)
-    //         .build()
-    //         .unwrap();
-    //
-    //     // Call the endpoint. The return type decides how to represent the value.
-    //     endpoint.query(&self.client)
-    // }
 }
