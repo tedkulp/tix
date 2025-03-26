@@ -49,7 +49,7 @@ func NewGithubProject(repoName string) (*GithubProject, error) {
 }
 
 // CreateIssue creates a new issue in the repository
-func (p *GithubProject) CreateIssue(title, labels string) (*GithubIssue, error) {
+func (p *GithubProject) CreateIssue(title, labels string, milestoneTitle ...string) (*GithubIssue, error) {
 	labelSlice := strings.Split(labels, ",")
 	for i, label := range labelSlice {
 		labelSlice[i] = strings.TrimSpace(label)
@@ -59,6 +59,9 @@ func (p *GithubProject) CreateIssue(title, labels string) (*GithubIssue, error) 
 		Title:  &title,
 		Labels: &labelSlice,
 	}
+
+	// Note: milestoneTitle parameter is ignored for GitHub issues since we're
+	// only implementing GitLab milestone support per requirements
 
 	result, _, err := p.client.Issues.Create(context.Background(), p.owner, p.repo, issue)
 	if err != nil {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -134,6 +135,27 @@ If no title is provided, you will be prompted for one.`,
 			"labels": labels,
 		})
 
+		// Get milestone (only for GitLab)
+		var milestone string
+		if repo.GitlabRepo != "" {
+			// Calculate default milestone based on current date
+			defaultMilestone := utils.GenerateMilestone(time.Now())
+
+			milestonePrompt := promptui.Prompt{
+				Label:   "Milestone",
+				Default: defaultMilestone,
+			}
+			milestone, err = milestonePrompt.Run()
+			if err != nil {
+				logger.Error("Failed to get milestone", err)
+				return fmt.Errorf("failed to get milestone: %w", err)
+			}
+
+			logger.Info("Milestone set", map[string]interface{}{
+				"milestone": milestone,
+			})
+		}
+
 		// Create issue
 		var issueNumber int
 		var issueTitle string
@@ -162,7 +184,8 @@ If no title is provided, you will be prompted for one.`,
 			})
 		} else {
 			logger.Info("Creating GitLab issue", map[string]interface{}{
-				"repo": repo.GitlabRepo,
+				"repo":      repo.GitlabRepo,
+				"milestone": milestone,
 			})
 
 			project, err := services.NewGitlabProject(repo.GitlabRepo)
@@ -170,7 +193,7 @@ If no title is provided, you will be prompted for one.`,
 				logger.Error("Failed to create GitLab client", err)
 				return fmt.Errorf("failed to create GitLab client: %w", err)
 			}
-			issue, err := project.CreateIssue(title, labels)
+			issue, err := project.CreateIssue(title, labels, milestone)
 			if err != nil {
 				logger.Error("Failed to create GitLab issue", err)
 				return fmt.Errorf("failed to create GitLab issue: %w", err)
@@ -179,8 +202,9 @@ If no title is provided, you will be prompted for one.`,
 			issueTitle = issue.Title
 
 			logger.Info("GitLab issue created", map[string]interface{}{
-				"number": issueNumber,
-				"title":  issueTitle,
+				"number":    issueNumber,
+				"title":     issueTitle,
+				"milestone": milestone,
 			})
 		}
 

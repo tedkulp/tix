@@ -3,6 +3,7 @@ package utils
 import (
 	"reflect"
 	"testing"
+	"time"
 )
 
 func TestTruncateAndDashCase(t *testing.T) {
@@ -121,6 +122,49 @@ func TestSplitOnCommaAndWhitespace(t *testing.T) {
 			got := SplitOnCommaAndWhitespace(tt.input)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("SplitOnCommaAndWhitespace() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGenerateMilestone(t *testing.T) {
+	tests := []struct {
+		name string
+		date time.Time
+		want string
+	}{
+		{
+			name: "Q1",
+			date: time.Date(2025, time.January, 15, 0, 0, 0, 0, time.UTC),
+			want: "2025.Q1",
+		},
+		{
+			name: "Q1 edge - March",
+			date: time.Date(2025, time.March, 31, 23, 59, 59, 0, time.UTC),
+			want: "2025.Q1",
+		},
+		{
+			name: "Q2",
+			date: time.Date(2025, time.April, 1, 0, 0, 0, 0, time.UTC),
+			want: "2025.Q2",
+		},
+		{
+			name: "Q3",
+			date: time.Date(2025, time.July, 15, 0, 0, 0, 0, time.UTC),
+			want: "2025.Q3",
+		},
+		{
+			name: "Q4",
+			date: time.Date(2025, time.December, 31, 0, 0, 0, 0, time.UTC),
+			want: "2025.Q4",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := GenerateMilestone(tt.date)
+			if got != tt.want {
+				t.Errorf("GenerateMilestone() = %v, want %v", got, tt.want)
 			}
 		})
 	}

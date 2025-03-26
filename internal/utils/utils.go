@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"fmt"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -51,4 +53,25 @@ func SplitOnCommaAndWhitespace(s string) []string {
 		parts[i] = strings.TrimSpace(part)
 	}
 	return parts
+}
+
+// GenerateMilestone creates a milestone string in the format YYYY.QN based on the provided time
+// For example: 2025.Q1 for January-March, 2025.Q2 for April-June, etc.
+func GenerateMilestone(t time.Time) string {
+	year := t.Year()
+	month := t.Month()
+
+	var quarter int
+	switch {
+	case month >= time.January && month <= time.March:
+		quarter = 1
+	case month >= time.April && month <= time.June:
+		quarter = 2
+	case month >= time.July && month <= time.September:
+		quarter = 3
+	case month >= time.October && month <= time.December:
+		quarter = 4
+	}
+
+	return fmt.Sprintf("%d.Q%d", year, quarter)
 }
