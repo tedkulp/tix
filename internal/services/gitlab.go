@@ -38,8 +38,38 @@ func NewGitlabProject(repoName string) (*GitlabProject, error) {
 	}, nil
 }
 
+// GetMilestoneID returns the ID of a milestone by title
+func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
+	if title == "" {
+		return 0, nil
+	}
+
+	// List project milestones to find the one with matching title
+	milestones, _, err := p.client.Milestones.ListMilestones(p.pid, &gitlab.ListMilestonesOptions{
+		Title: &title,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to list milestones: %w", err)
+	}
+
+	// Return the ID if found
+	if len(milestones) > 0 {
+		return milestones[0].ID, nil
+	}
+
+	// Otherwise, create the milestone
+	milestone, _, err := p.client.Milestones.CreateMilestone(p.pid, &gitlab.CreateMilestoneOptions{
+		Title: &title,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create milestone: %w", err)
+	}
+
+	return milestone.ID, nil
+}
+
 // CreateIssue creates a new issue in the repository
-func (p *GitlabProject) CreateIssue(title, labels string) (*GitlabIssue, error) {
+func (p *GitlabProject) CreateIssue(title, labels string, milestoneTitle ...string) (*GitlabIssue, error) {
 	labelSlice := strings.Split(labels, ",")
 	for i, label := range labelSlice {
 		labelSlice[i] = strings.TrimSpace(label)
@@ -49,6 +79,18 @@ func (p *GitlabProject) CreateIssue(title, labels string) (*GitlabIssue, error) 
 	opt := &gitlab.CreateIssueOptions{
 		Title:  &title,
 		Labels: &labelsOpt,
+	}
+
+	// Add milestone if provided
+	if len(milestoneTitle) > 0 && milestoneTitle[0] != "" {
+		milestoneID, err := p.GetMilestoneID(milestoneTitle[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to get milestone ID: %w", err)
+		}
+
+		if milestoneID > 0 {
+			opt.MilestoneID = &milestoneID
+		}
 	}
 
 	result, _, err := p.client.Issues.CreateIssue(p.pid, opt)
