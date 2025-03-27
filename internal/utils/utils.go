@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -74,4 +75,27 @@ func GenerateMilestone(t time.Time) string {
 	}
 
 	return fmt.Sprintf("%d.Q%d", year, quarter)
+}
+
+// ExtractIssueNumber extracts the issue number from a branch name.
+// Branch names are typically in the format 123-branch-name.
+func ExtractIssueNumber(branchName string) (int, error) {
+	// Split the branch name by dash and get the first part
+	parts := strings.SplitN(branchName, "-", 2)
+	if len(parts) < 2 {
+		return 0, fmt.Errorf("invalid branch name format: %s", branchName)
+	}
+
+	// Validate that the first part is numeric
+	if !strings.HasPrefix(parts[0], "0") && !strings.HasPrefix(parts[0], "1") && !strings.HasPrefix(parts[0], "2") && !strings.HasPrefix(parts[0], "3") && !strings.HasPrefix(parts[0], "4") && !strings.HasPrefix(parts[0], "5") && !strings.HasPrefix(parts[0], "6") && !strings.HasPrefix(parts[0], "7") && !strings.HasPrefix(parts[0], "8") && !strings.HasPrefix(parts[0], "9") {
+		return 0, fmt.Errorf("invalid branch name format: %s", branchName)
+	}
+
+	// Convert the first part to an integer
+	issueNumber, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse issue number from branch name: %w", err)
+	}
+
+	return issueNumber, nil
 }
