@@ -2,6 +2,7 @@ package utils
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -165,6 +166,81 @@ func TestGenerateMilestone(t *testing.T) {
 			got := GenerateMilestone(tt.date)
 			if got != tt.want {
 				t.Errorf("GenerateMilestone() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractIssueNumber(t *testing.T) {
+	tests := []struct {
+		name        string
+		branchName  string
+		wantNumber  int
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "valid branch name with issue number",
+			branchName: "123-add-feature",
+			wantNumber: 123,
+			wantErr:    false,
+		},
+		{
+			name:       "valid branch name with single digit issue",
+			branchName: "1-fix-bug",
+			wantNumber: 1,
+			wantErr:    false,
+		},
+		{
+			name:       "valid branch name with large issue number",
+			branchName: "999999-implement-major-feature",
+			wantNumber: 999999,
+			wantErr:    false,
+		},
+		{
+			name:        "branch name without issue number",
+			branchName:  "feature-branch",
+			wantErr:     true,
+			errContains: "invalid branch name format",
+		},
+		{
+			name:        "branch name with non-numeric issue",
+			branchName:  "abc-add-feature",
+			wantErr:     true,
+			errContains: "invalid branch name format",
+		},
+		{
+			name:        "empty branch name",
+			branchName:  "",
+			wantErr:     true,
+			errContains: "invalid branch name format",
+		},
+		{
+			name:        "branch name with only issue number",
+			branchName:  "123",
+			wantErr:     true,
+			errContains: "invalid branch name format",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ExtractIssueNumber(tt.branchName)
+			if tt.wantErr {
+				if err == nil {
+					t.Error("ExtractIssueNumber() error = nil, wantErr true")
+				}
+				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
+					t.Errorf("ExtractIssueNumber() error = %v, want error containing %v", err, tt.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ExtractIssueNumber() error = %v, wantErr false", err)
+				return
+			}
+			if got != tt.wantNumber {
+				t.Errorf("ExtractIssueNumber() = %v, want %v", got, tt.wantNumber)
 			}
 		})
 	}

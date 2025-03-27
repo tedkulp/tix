@@ -7,12 +7,16 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.2.1
 	github.com/google/go-github/v62 v62.0.0
 	github.com/manifoldco/promptui v0.9.0
+	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/rs/zerolog v1.32.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.0
 	github.com/xanzy/go-gitlab v0.115.0
 	golang.org/x/oauth2 v0.28.0
 )
+
+// Use gitlab.com/gitlab-org/api/client-go as the source for github.com/xanzy/go-gitlab
+replace github.com/xanzy/go-gitlab => gitlab.com/gitlab-org/api/client-go v0.115.0
 
 require (
 	dario.cat/mergo v1.0.0 // indirect

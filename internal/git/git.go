@@ -2,9 +2,11 @@ package git
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/tedkulp/tix/internal/logger"
 )
 
 // Repository represents a Git repository
@@ -69,6 +71,66 @@ func (r *Repository) CheckoutBranch(name string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to checkout branch: %w", err)
+	}
+
+	return nil
+}
+
+// GetCurrentBranch returns the name of the current branch
+func (r *Repository) GetCurrentBranch() (string, error) {
+	head, err := r.Head()
+	if err != nil {
+		return "", fmt.Errorf("failed to get HEAD: %w", err)
+	}
+
+	// Check if head is a branch
+	if head.Name().IsBranch() {
+		return head.Name().Short(), nil
+	}
+
+	return "", fmt.Errorf("HEAD is not a branch")
+}
+
+// Push pushes the current branch to the remote repository
+func (r *Repository) Push(remoteName string, branchName string) error {
+	// Get remote details
+	remote, err := r.Remote(remoteName)
+	if err != nil {
+		return fmt.Errorf("failed to get remote: %w", err)
+	}
+
+	// Get first URL from remote
+	urls := remote.Config().URLs
+	if len(urls) == 0 {
+		return fmt.Errorf("no URLs found for remote %s", remoteName)
+	}
+
+	logger.Debug("Pushing branch", map[string]interface{}{
+		"remote": remoteName,
+		"branch": branchName,
+		"url":    urls[0],
+	})
+
+	// Use git command line
+	cmd := exec.Command("git", "push", remoteName, branchName)
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error("Push failed", err, map[string]interface{}{
+			"output": string(output),
+		})
+		return fmt.Errorf("failed to push to remote: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteBranch deletes a branch
+func (r *Repository) DeleteBranch(name string) error {
+	ref := plumbing.NewBranchReferenceName(name)
+	err := r.Storer.RemoveReference(ref)
+	if err != nil {
+		return fmt.Errorf("failed to delete branch: %w", err)
 	}
 
 	return nil

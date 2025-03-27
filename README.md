@@ -6,6 +6,7 @@ A CLI tool for creating tickets and branches in Git repositories, with support f
 
 - Create tickets in GitHub or GitLab
 - Automatically create and checkout branches
+- Create draft merge requests/pull requests
 - Support for Git worktrees
 - Interactive repository selection
 - Configurable default labels
@@ -49,6 +50,9 @@ tix create
 
 # Create a new ticket with a specific title
 tix create --title "Add new feature"
+
+# Create a merge request/pull request for the current branch
+tix mr
 ```
 
 ## License

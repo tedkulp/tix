@@ -28,7 +28,7 @@ If no title is provided, you will be prompted for one.`,
 
 		cfg, err := config.Load()
 		if err != nil {
-			logger.Error("Failed to load config", err)
+			// logger.Error("Failed to load config", err)
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
@@ -45,7 +45,7 @@ If no title is provided, you will be prompted for one.`,
 
 		_, repoName, err := prompt.Run()
 		if err != nil {
-			logger.Error("Failed to select repository", err)
+			// logger.Error("Failed to select repository", err)
 			return fmt.Errorf("failed to select repository: %w", err)
 		}
 
@@ -55,9 +55,9 @@ If no title is provided, you will be prompted for one.`,
 
 		repo := cfg.GetRepo(repoName)
 		if repo == nil {
-			logger.Error("Repository not found", nil, map[string]interface{}{
-				"repo": repoName,
-			})
+			// logger.Error("Repository not found", nil, map[string]interface{}{
+			// 	"repo": repoName,
+			// })
 			return fmt.Errorf("repository not found: %s", repoName)
 		}
 
@@ -79,20 +79,20 @@ If no title is provided, you will be prompted for one.`,
 		// Open Git repository
 		gitRepo, err := git.Open(repo.Directory)
 		if err != nil {
-			logger.Error("Failed to open repository", err, map[string]interface{}{
-				"directory": repo.Directory,
-			})
+			// logger.Error("Failed to open repository", err, map[string]interface{}{
+			// 	"directory": repo.Directory,
+			// })
 			return fmt.Errorf("failed to open repository: %w", err)
 		}
 
 		// Check if repository is clean
 		isClean, err := gitRepo.IsClean()
 		if err != nil {
-			logger.Error("Failed to check repository status", err)
+			// logger.Error("Failed to check repository status", err)
 			return fmt.Errorf("failed to check repository status: %w", err)
 		}
 		if !isClean {
-			logger.Error("Repository is not clean", nil)
+			// logger.Error("Repository is not clean", nil)
 			return fmt.Errorf("repository is not clean")
 		}
 
@@ -111,7 +111,7 @@ If no title is provided, you will be prompted for one.`,
 			}
 			title, err = prompt.Run()
 			if err != nil {
-				logger.Error("Failed to get title", err)
+				// logger.Error("Failed to get title", err)
 				return fmt.Errorf("failed to get title: %w", err)
 			}
 		}
@@ -127,7 +127,7 @@ If no title is provided, you will be prompted for one.`,
 		}
 		labels, err := labelPrompt.Run()
 		if err != nil {
-			logger.Error("Failed to get labels", err)
+			// logger.Error("Failed to get labels", err)
 			return fmt.Errorf("failed to get labels: %w", err)
 		}
 
@@ -167,12 +167,12 @@ If no title is provided, you will be prompted for one.`,
 
 			project, err := services.NewGithubProject(repo.GithubRepo)
 			if err != nil {
-				logger.Error("Failed to create GitHub client", err)
+				// logger.Error("Failed to create GitHub client", err)
 				return fmt.Errorf("failed to create GitHub client: %w", err)
 			}
 			issue, err := project.CreateIssue(title, labels)
 			if err != nil {
-				logger.Error("Failed to create GitHub issue", err)
+				// logger.Error("Failed to create GitHub issue", err)
 				return fmt.Errorf("failed to create GitHub issue: %w", err)
 			}
 			issueNumber = issue.Number
@@ -190,12 +190,12 @@ If no title is provided, you will be prompted for one.`,
 
 			project, err := services.NewGitlabProject(repo.GitlabRepo)
 			if err != nil {
-				logger.Error("Failed to create GitLab client", err)
+				// logger.Error("Failed to create GitLab client", err)
 				return fmt.Errorf("failed to create GitLab client: %w", err)
 			}
 			issue, err := project.CreateIssue(title, labels, milestone)
 			if err != nil {
-				logger.Error("Failed to create GitLab issue", err)
+				// logger.Error("Failed to create GitLab issue", err)
 				return fmt.Errorf("failed to create GitLab issue: %w", err)
 			}
 			issueNumber = issue.IID
@@ -224,11 +224,11 @@ If no title is provided, you will be prompted for one.`,
 			})
 
 			if err := gitRepo.AddWorktree(branchName, worktreeDir); err != nil {
-				logger.Error("Failed to create worktree", err)
+				// logger.Error("Failed to create worktree", err)
 				return fmt.Errorf("failed to create worktree: %w", err)
 			}
 
-			logger.Info("Worktree created successfully")
+			// logger.Info("Worktree created successfully")
 			fmt.Printf("Created worktree: %s in %s\n", branchName, worktreeDir)
 		} else {
 			logger.Info("Creating and checking out branch", map[string]interface{}{
@@ -244,7 +244,7 @@ If no title is provided, you will be prompted for one.`,
 				return fmt.Errorf("failed to checkout branch: %w", err)
 			}
 
-			logger.Info("Branch created and checked out successfully")
+			// logger.Info("Branch created and checked out successfully")
 			fmt.Printf("Created and checked out branch: %s\n", branchName)
 		}
 

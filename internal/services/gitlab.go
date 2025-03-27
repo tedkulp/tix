@@ -20,6 +20,14 @@ type GitlabIssue struct {
 	Title string
 }
 
+// GitlabMergeRequest represents a GitLab merge request
+type GitlabMergeRequest struct {
+	IID     int
+	Title   string
+	WebURL  string
+	IsDraft bool
+}
+
 // NewGitlabProject creates a new GitLab project client
 func NewGitlabProject(repoName string) (*GitlabProject, error) {
 	token := os.Getenv("GITLAB_TOKEN")
@@ -101,5 +109,79 @@ func (p *GitlabProject) CreateIssue(title, labels string, milestoneTitle ...stri
 	return &GitlabIssue{
 		IID:   result.IID,
 		Title: result.Title,
+	}, nil
+}
+
+// GetOpenMergeRequestsForIssue returns all open merge requests related to an issue
+func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMergeRequest, error) {
+	opts := &gitlab.ListProjectMergeRequestsOptions{
+		State: gitlab.String("opened"),
+	}
+
+	allMRs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list merge requests: %w", err)
+	}
+
+	var matchingMRs []*GitlabMergeRequest
+	for _, mr := range allMRs {
+		// Check if the description contains a reference to the issue
+		issueRef := fmt.Sprintf("#%d", issueID)
+		issueRefAlt := fmt.Sprintf("Closes #%d", issueID)
+
+		if strings.Contains(mr.Description, issueRef) || strings.Contains(mr.Description, issueRefAlt) {
+			isDraft := mr.WorkInProgress || strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
+			matchingMRs = append(matchingMRs, &GitlabMergeRequest{
+				IID:     mr.IID,
+				Title:   mr.Title,
+				WebURL:  mr.WebURL,
+				IsDraft: isDraft,
+			})
+		}
+	}
+
+	return matchingMRs, nil
+}
+
+// CreateMergeRequest creates a new merge request in the repository
+func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, isDraft bool) (*GitlabMergeRequest, error) {
+	// Add "Draft:" prefix if it's a draft MR
+	if isDraft {
+		title = "Draft: " + title
+	}
+
+	description := fmt.Sprintf("Closes #%d", issueIID)
+
+	// Create MR options
+	opt := &gitlab.CreateMergeRequestOptions{
+		Title:        &title,
+		SourceBranch: &sourceBranch,
+		TargetBranch: &targetBranch,
+		Description:  &description,
+	}
+
+	result, _, err := p.client.MergeRequests.CreateMergeRequest(p.pid, opt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create merge request: %w", err)
+	}
+
+	return &GitlabMergeRequest{
+		IID:     result.IID,
+		Title:   result.Title,
+		WebURL:  result.WebURL,
+		IsDraft: isDraft,
+	}, nil
+}
+
+// GetIssue returns an issue by its number
+func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	return &GitlabIssue{
+		IID:   issue.IID,
+		Title: issue.Title,
 	}, nil
 }
