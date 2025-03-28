@@ -5,7 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/xanzy/go-gitlab"
+	"github.com/tedkulp/tix/internal/logger"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 )
 
 // GitlabProject represents a GitLab repository
@@ -57,15 +58,53 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 		Title: &title,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("failed to list milestones: %w", err)
+		return 0, fmt.Errorf("failed to list project milestones: %w", err)
 	}
 
-	// Return the ID if found
+	logger.Debug("Project milestones found", map[string]interface{}{
+		"milestones": milestones,
+	})
+
+	// Return the ID if found at project level
 	if len(milestones) > 0 {
 		return milestones[0].ID, nil
 	}
 
-	// Otherwise, create the milestone
+	// Get project details to find the group
+	project, _, err := p.client.Projects.GetProject(p.pid, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get project details: %w", err)
+	}
+
+	// Check if project belongs to a group
+	if project.Namespace != nil && project.Namespace.Kind == "group" {
+		// Get the group ID
+		groupID := project.Namespace.ID
+
+		// Set include ancestors to true to check all parent groups
+		includeAncestors := true
+
+		// List group milestones to find the one with matching title
+		groupMilestones, _, err := p.client.GroupMilestones.ListGroupMilestones(groupID, &gitlab.ListGroupMilestonesOptions{
+			Title:            &title,
+			IncludeAncestors: &includeAncestors,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("failed to list group milestones: %w", err)
+		}
+
+		logger.Debug("Group milestones found", map[string]interface{}{
+			"group_id":   groupID,
+			"milestones": groupMilestones,
+		})
+
+		// Return the ID if found at group level
+		if len(groupMilestones) > 0 {
+			return groupMilestones[0].ID, nil
+		}
+	}
+
+	// Otherwise, create the milestone at project level
 	milestone, _, err := p.client.Milestones.CreateMilestone(p.pid, &gitlab.CreateMilestoneOptions{
 		Title: &title,
 	})
@@ -130,7 +169,8 @@ func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMerg
 		issueRefAlt := fmt.Sprintf("Closes #%d", issueID)
 
 		if strings.Contains(mr.Description, issueRef) || strings.Contains(mr.Description, issueRefAlt) {
-			isDraft := mr.WorkInProgress || strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
+			// isDraft := mr.WorkInProgress || strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
+			isDraft := strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
 			matchingMRs = append(matchingMRs, &GitlabMergeRequest{
 				IID:     mr.IID,
 				Title:   mr.Title,
