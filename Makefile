@@ -3,6 +3,12 @@ BINARY_NAME=tix
 MAIN_PACKAGE=.
 GOBIN=$(CURDIR)/bin
 
+# Version parameters
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
+COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LD_FLAGS=-ldflags "-X github.com/tedkulp/tix/internal/version.Version=$(VERSION) -X github.com/tedkulp/tix/internal/version.Commit=$(COMMIT) -X github.com/tedkulp/tix/internal/version.BuildDate=$(BUILD_DATE)"
+
 .PHONY: all build clean test test-verbose run install lint vet format help
 
 help:
@@ -22,9 +28,9 @@ help:
 all: clean build test
 
 build:
-	@echo "Building $(BINARY_NAME)..."
+	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	@mkdir -p $(GOBIN)
-	@go build -o $(GOBIN)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	@go build $(LD_FLAGS) -o $(GOBIN)/$(BINARY_NAME) $(MAIN_PACKAGE)
 
 clean:
 	@echo "Cleaning..."
@@ -49,7 +55,7 @@ run: build
 
 install:
 	@echo "Installing $(BINARY_NAME)..."
-	@go install $(MAIN_PACKAGE)
+	@go install $(LD_FLAGS) $(MAIN_PACKAGE)
 
 lint:
 	@echo "Linting code..."

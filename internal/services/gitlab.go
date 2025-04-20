@@ -17,8 +17,10 @@ type GitlabProject struct {
 
 // GitlabIssue represents a GitLab issue
 type GitlabIssue struct {
-	IID   int
-	Title string
+	IID         int
+	Title       string
+	Labels      []string
+	MilestoneID int
 }
 
 // GitlabMergeRequest represents a GitLab merge request
@@ -116,7 +118,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 }
 
 // CreateIssue creates a new issue in the repository
-func (p *GitlabProject) CreateIssue(title, labels string, milestoneTitle ...string) (*GitlabIssue, error) {
+func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, milestoneTitle ...string) (*GitlabIssue, error) {
 	labelSlice := strings.Split(labels, ",")
 	for i, label := range labelSlice {
 		labelSlice[i] = strings.TrimSpace(label)
@@ -126,6 +128,15 @@ func (p *GitlabProject) CreateIssue(title, labels string, milestoneTitle ...stri
 	opt := &gitlab.CreateIssueOptions{
 		Title:  &title,
 		Labels: &labelsOpt,
+	}
+
+	// Self-assign if requested
+	if selfAssign {
+		user, _, err := p.client.Users.CurrentUser()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current user: %w", err)
+		}
+		opt.AssigneeIDs = &[]int{user.ID}
 	}
 
 	// Add milestone if provided
@@ -183,8 +194,28 @@ func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMerg
 	return matchingMRs, nil
 }
 
+// GetIssue returns an issue by its number
+func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	var milestoneID int
+	if issue.Milestone != nil {
+		milestoneID = issue.Milestone.ID
+	}
+
+	return &GitlabIssue{
+		IID:         issue.IID,
+		Title:       issue.Title,
+		Labels:      issue.Labels,
+		MilestoneID: milestoneID,
+	}, nil
+}
+
 // CreateMergeRequest creates a new merge request in the repository
-func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, isDraft bool) (*GitlabMergeRequest, error) {
+func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, isDraft bool, issueLabels []string, milestoneid int) (*GitlabMergeRequest, error) {
 	// Add "Draft:" prefix if it's a draft MR
 	if isDraft {
 		title = "Draft: " + title
@@ -200,6 +231,17 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		Description:  &description,
 	}
 
+	// Add labels if provided
+	if len(issueLabels) > 0 {
+		labelsOpt := gitlab.LabelOptions(issueLabels)
+		opt.Labels = &labelsOpt
+	}
+
+	// Add milestone if provided
+	if milestoneid > 0 {
+		opt.MilestoneID = &milestoneid
+	}
+
 	result, _, err := p.client.MergeRequests.CreateMergeRequest(p.pid, opt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create merge request: %w", err)
@@ -210,18 +252,5 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		Title:   result.Title,
 		WebURL:  result.WebURL,
 		IsDraft: isDraft,
-	}, nil
-}
-
-// GetIssue returns an issue by its number
-func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
-	issue, _, err := p.client.Issues.GetIssue(p.pid, issueNumber)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get issue: %w", err)
-	}
-
-	return &GitlabIssue{
-		IID:   issue.IID,
-		Title: issue.Title,
 	}, nil
 }

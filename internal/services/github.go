@@ -21,6 +21,7 @@ type GithubProject struct {
 type GithubIssue struct {
 	Number int
 	Title  string
+	Labels []string
 }
 
 // GithubPullRequest represents a GitHub pull request
@@ -57,7 +58,7 @@ func NewGithubProject(repoName string) (*GithubProject, error) {
 }
 
 // CreateIssue creates a new issue in the repository
-func (p *GithubProject) CreateIssue(title, labels string, milestoneTitle ...string) (*GithubIssue, error) {
+func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, milestoneTitle ...string) (*GithubIssue, error) {
 	labelSlice := strings.Split(labels, ",")
 	for i, label := range labelSlice {
 		labelSlice[i] = strings.TrimSpace(label)
@@ -66,6 +67,15 @@ func (p *GithubProject) CreateIssue(title, labels string, milestoneTitle ...stri
 	issue := &github.IssueRequest{
 		Title:  &title,
 		Labels: &labelSlice,
+	}
+
+	// Self-assign if requested
+	if selfAssign {
+		user, _, err := p.client.Users.Get(context.Background(), "")
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current user: %w", err)
+		}
+		issue.Assignees = &[]string{*user.Login}
 	}
 
 	// Note: milestoneTitle parameter is ignored for GitHub issues since we're
@@ -113,7 +123,7 @@ func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubP
 }
 
 // CreatePullRequest creates a new pull request in the repository
-func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool) (*GithubPullRequest, error) {
+func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, issueLabels []string) (*GithubPullRequest, error) {
 	body := fmt.Sprintf("Closes #%d", issueNumber)
 
 	// Create PR options
@@ -131,6 +141,15 @@ func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch stri
 		return nil, fmt.Errorf("failed to create pull request: %w", err)
 	}
 
+	// Apply labels after PR creation
+	if len(issueLabels) > 0 {
+		_, _, err = p.client.Issues.AddLabelsToIssue(context.Background(), p.owner, p.repo, *result.Number, issueLabels)
+		if err != nil {
+			// Just log the error but don't fail
+			fmt.Printf("Warning: Failed to apply labels to pull request: %v\n", err)
+		}
+	}
+
 	return &GithubPullRequest{
 		Number:  *result.Number,
 		Title:   *result.Title,
@@ -146,8 +165,15 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
 	}
 
+	// Extract label names
+	labels := make([]string, 0, len(issue.Labels))
+	for _, label := range issue.Labels {
+		labels = append(labels, *label.Name)
+	}
+
 	return &GithubIssue{
 		Number: issue.GetNumber(),
 		Title:  issue.GetTitle(),
+		Labels: labels,
 	}, nil
 }
