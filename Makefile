@@ -7,7 +7,7 @@ GOBIN=$(CURDIR)/bin
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "0.1.0")
 COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
 BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LD_FLAGS=-ldflags "-X github.com/tedkulp/tix/internal/version.Version=$(VERSION) -X github.com/tedkulp/tix/internal/version.Commit=$(COMMIT) -X github.com/tedkulp/tix/internal/version.BuildDate=$(BUILD_DATE)"
+LD_FLAGS=-ldflags "-X github.com/tedkulp/tix/internal/version.Version=$(VERSION) -X github.com/tedkulp/tix/internal/version.Commit=$(COMMIT) -X github.com/tedkulp/tix/internal/version.Date=$(BUILD_DATE)"
 
 .PHONY: all build clean test test-verbose run install lint vet format help
 
@@ -53,7 +53,7 @@ run: build
 	@echo "Running $(BINARY_NAME)..."
 	@$(GOBIN)/$(BINARY_NAME)
 
-install:
+install: build
 	@echo "Installing $(BINARY_NAME)..."
 	@go install $(LD_FLAGS) $(MAIN_PACKAGE)
 
