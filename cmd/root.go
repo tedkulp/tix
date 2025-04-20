@@ -50,7 +50,10 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 
 		// If no args, show the help
 		if len(args) == 0 {
-			cmd.Help()
+			err := cmd.Help()
+			if err != nil {
+				logger.Error("Failed to show help", err)
+			}
 			os.Exit(0)
 		}
 	},

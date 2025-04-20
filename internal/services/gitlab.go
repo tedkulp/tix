@@ -165,7 +165,7 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 // GetOpenMergeRequestsForIssue returns all open merge requests related to an issue
 func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMergeRequest, error) {
 	opts := &gitlab.ListProjectMergeRequestsOptions{
-		State: gitlab.String("opened"),
+		State: gitlab.Ptr("opened"),
 	}
 
 	allMRs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts)
