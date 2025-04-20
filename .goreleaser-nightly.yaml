@@ -1,0 +1,47 @@
+version: 2
+
+builds:
+  - id: tix
+    binary: tix
+    main: ./main.go
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/tedkulp/tix/internal/version.Version={{.Version}}-nightly
+      - -X github.com/tedkulp/tix/internal/version.Commit={{.Commit}}
+      - -X github.com/tedkulp/tix/internal/version.Date={{.Date}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}-nightly_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+    formats:
+      - tar.gz
+  - id: windows
+    name_template: "{{ .ProjectName }}_{{ .Version }}-nightly_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+    formats:
+      - zip
+    builds_info:
+      group: default
+    ids:
+      - tix
+    allow_different_binary_count: true
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-nightly" 

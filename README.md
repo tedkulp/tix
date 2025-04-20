@@ -58,3 +58,34 @@ tix mr
 ## License
 
 MIT 
+
+## Releasing
+
+This project uses [GoReleaser](https://goreleaser.com/) to handle releases. To release a new version:
+
+1. Create and push a new tag with the version (e.g., `v0.1.0`):
+   ```bash
+   git tag -a v0.1.0 -m "Release v0.1.0"
+   git push origin v0.1.0
+   ```
+
+2. The GitHub Actions workflow will automatically build and release the binaries to GitHub Releases.
+
+### Homebrew
+
+Releases are automatically published to the [tedkulp/homebrew-tap](https://github.com/tedkulp/homebrew-tap) repository. To install via Homebrew:
+
+```bash
+brew tap tedkulp/tap
+brew install tix
+```
+
+### Manual Release
+
+If you need to create a release manually:
+
+1. Install GoReleaser: `brew install goreleaser/tap/goreleaser`
+2. Set your GitHub token: `export GITHUB_TOKEN=your_token`
+3. Run GoReleaser: `goreleaser release --clean`
+
+For local testing, you can run: `goreleaser release --snapshot --clean` 
