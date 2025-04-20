@@ -15,7 +15,8 @@ import (
 )
 
 var (
-	title string
+	title      string
+	selfAssign bool
 )
 
 var createCmd = &cobra.Command{
@@ -162,7 +163,8 @@ If no title is provided, you will be prompted for one.`,
 
 		if repo.GithubRepo != "" {
 			logger.Info("Creating GitHub issue", map[string]interface{}{
-				"repo": repo.GithubRepo,
+				"repo":        repo.GithubRepo,
+				"self_assign": selfAssign,
 			})
 
 			project, err := services.NewGithubProject(repo.GithubRepo)
@@ -170,7 +172,7 @@ If no title is provided, you will be prompted for one.`,
 				// logger.Error("Failed to create GitHub client", err)
 				return fmt.Errorf("failed to create GitHub client: %w", err)
 			}
-			issue, err := project.CreateIssue(title, labels)
+			issue, err := project.CreateIssue(title, labels, selfAssign)
 			if err != nil {
 				// logger.Error("Failed to create GitHub issue", err)
 				return fmt.Errorf("failed to create GitHub issue: %w", err)
@@ -184,8 +186,9 @@ If no title is provided, you will be prompted for one.`,
 			})
 		} else {
 			logger.Info("Creating GitLab issue", map[string]interface{}{
-				"repo":      repo.GitlabRepo,
-				"milestone": milestone,
+				"repo":        repo.GitlabRepo,
+				"milestone":   milestone,
+				"self_assign": selfAssign,
 			})
 
 			project, err := services.NewGitlabProject(repo.GitlabRepo)
@@ -193,7 +196,7 @@ If no title is provided, you will be prompted for one.`,
 				// logger.Error("Failed to create GitLab client", err)
 				return fmt.Errorf("failed to create GitLab client: %w", err)
 			}
-			issue, err := project.CreateIssue(title, labels, milestone)
+			issue, err := project.CreateIssue(title, labels, selfAssign, milestone)
 			if err != nil {
 				// logger.Error("Failed to create GitLab issue", err)
 				return fmt.Errorf("failed to create GitLab issue: %w", err)
@@ -256,4 +259,5 @@ If no title is provided, you will be prompted for one.`,
 func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&title, "title", "t", "", "Title of the issue")
+	createCmd.Flags().BoolVarP(&selfAssign, "assign", "a", true, "Assign the issue to yourself")
 }

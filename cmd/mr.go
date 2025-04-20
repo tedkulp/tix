@@ -26,6 +26,8 @@ It will extract the issue number from the branch name and create a merge request
 
 		// Get the draft flag value
 		isDraft, _ := cmd.Flags().GetBool("draft")
+		// Get the remote flag value
+		remote, _ := cmd.Flags().GetString("remote")
 
 		cfg, err := config.Load()
 		if err != nil {
@@ -148,13 +150,14 @@ It will extract the issue number from the branch name and create a merge request
 				}
 			}
 
-			// Push current branch to origin
-			logger.Info("Pushing branch to origin", map[string]interface{}{
+			// Push current branch to remote
+			logger.Info("Pushing branch to "+remote, map[string]interface{}{
 				"branch": currentBranch,
+				"remote": remote,
 			})
 
-			if err := gitRepo.Push("origin", currentBranch); err != nil {
-				return fmt.Errorf("failed to push to origin: %w", err)
+			if err := gitRepo.Push(remote, currentBranch); err != nil {
+				return fmt.Errorf("failed to push to %s: %w", remote, err)
 			}
 
 			logger.Info("Creating GitLab merge request", map[string]interface{}{
@@ -177,8 +180,14 @@ It will extract the issue number from the branch name and create a merge request
 			// Create MR title with issue number and full title
 			mrTitle := fmt.Sprintf("#%d - %s", issueNumber, issue.Title)
 
+			logger.Info("Creating merge request with issue metadata", map[string]interface{}{
+				"issue_title":     issue.Title,
+				"issue_labels":    issue.Labels,
+				"issue_milestone": issue.MilestoneID,
+			})
+
 			// Create merge request
-			mr, err := project.CreateMergeRequest(mrTitle, currentBranch, targetBranch, issueNumber, isDraft)
+			mr, err := project.CreateMergeRequest(mrTitle, currentBranch, targetBranch, issueNumber, isDraft, issue.Labels, issue.MilestoneID)
 			if err != nil {
 				return fmt.Errorf("failed to create merge request: %w", err)
 			}
@@ -221,13 +230,14 @@ It will extract the issue number from the branch name and create a merge request
 				}
 			}
 
-			// Push current branch to origin
-			logger.Info("Pushing branch to origin", map[string]interface{}{
+			// Push current branch to remote
+			logger.Info("Pushing branch to "+remote, map[string]interface{}{
 				"branch": currentBranch,
+				"remote": remote,
 			})
 
-			if err := gitRepo.Push("origin", currentBranch); err != nil {
-				return fmt.Errorf("failed to push to origin: %w", err)
+			if err := gitRepo.Push(remote, currentBranch); err != nil {
+				return fmt.Errorf("failed to push to %s: %w", remote, err)
 			}
 
 			logger.Info("Creating GitHub pull request", map[string]interface{}{
@@ -250,8 +260,13 @@ It will extract the issue number from the branch name and create a merge request
 			// Create PR title with issue number and full title
 			prTitle := fmt.Sprintf("#%d - %s", issueNumber, issue.Title)
 
+			logger.Info("Creating pull request with issue metadata", map[string]interface{}{
+				"issue_title":  issue.Title,
+				"issue_labels": issue.Labels,
+			})
+
 			// Create pull request
-			pr, err := project.CreatePullRequest(prTitle, currentBranch, targetBranch, issueNumber, isDraft)
+			pr, err := project.CreatePullRequest(prTitle, currentBranch, targetBranch, issueNumber, isDraft, issue.Labels)
 			if err != nil {
 				return fmt.Errorf("failed to create pull request: %w", err)
 			}
@@ -281,4 +296,5 @@ It will extract the issue number from the branch name and create a merge request
 func init() {
 	rootCmd.AddCommand(mrCmd)
 	mrCmd.Flags().BoolP("draft", "d", false, "Create the merge request as a draft")
+	mrCmd.Flags().StringP("remote", "r", "origin", "Git remote to push to")
 }
