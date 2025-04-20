@@ -34,3 +34,6 @@ go.work
 
 # Accidental binary files
 main
+
+# GoReleaser
+/dist/
