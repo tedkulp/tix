@@ -254,6 +254,23 @@ func (p *GithubProject) UpdateIssueDescription(issueNumber int, description stri
 	return nil
 }
 
+// UpdateIssueTitle updates the title of an issue
+func (p *GithubProject) UpdateIssueTitle(issueNumber int, title string) error {
+	ctx := context.Background()
+
+	// Update the issue
+	updateIssue := &github.IssueRequest{
+		Title: &title,
+	}
+
+	_, _, err := p.client.Issues.Edit(ctx, p.owner, p.repo, issueNumber, updateIssue)
+	if err != nil {
+		return fmt.Errorf("failed to update issue title: %w", err)
+	}
+
+	return nil
+}
+
 // GetIssue returns an issue by its number
 func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 	ctx := context.Background()

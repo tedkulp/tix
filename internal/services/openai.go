@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	openai "github.com/sashabaranov/go-openai"
@@ -83,7 +84,32 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 		"file_id": fileResp.ID,
 	})
 
-	content := "Please describe the changes in the attached git diff in plain English."
+	content := `Generate a concise and informative merge request description based on the following changes:
+
+The full diff is attached as a file.
+
+Please format the description EXACTLY in the following structure:
+
+### Summary
+
+A clear and concise summary of the changes (1-3 sentences). Focus on what was done and why.
+
+### For Developers
+
+Technical details about implementation, architecture changes, and code modifications. Include:
+- Major code changes and their purpose
+- New components or modules added
+- Any performance considerations
+- Breaking changes or deprecations
+
+### For Quality
+
+Information relevant for testers and QA:
+- What should be tested
+- Potential edge cases to consider
+- Any specific testing procedures required
+- Areas that might be impacted by these changes
+	`
 
 	// Create a thread
 	threadReq := openai.ThreadRequest{
@@ -219,11 +245,40 @@ func GenerateMRDescription(ctx context.Context, resources *OpenAIResources) (str
 }
 
 // GenerateIssueDescription generates a description for an issue using OpenAI
-func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (string, error) {
+func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (string, string, error) {
+	content := `
+Given the following diff of code changes, write a GitLab issue description that outlines
+what needs to change and why — as if it were written before the code was implemented. The
+description should explain the motivation for the change, the intended behavior or outcome,
+and any constraints or considerations, but should avoid describing the actual implementation
+or code specifics. Assume the reader is a teammate reviewing this before any work has been
+started.
+
+Please format the description EXACTLY in the following structure:
+
+## <Put the title goes here. It shouldn't be over 200 characters.>
+
+### Summary
+	
+A clear and concise summary of the changes (1-3 sentences). Focus on what needs to change
+any why.
+	
+### Rationale
+	
+The rationale for the change. Again, it should be 1-3 sentences, clear and concise.
+
+### Acceptance Criteria
+
+- [ ] High-level acceptance criteria or goals
+- [ ] They shouldn't mention specific file names, functions, or code
+- [ ] They should be in markdown checkboxes
+- [ ] They should assume the reader is a teammate reviewing this before any work has been started.
+	`
+
 	// Create a message asking for an issue description
 	_, err := resources.Client.CreateMessage(ctx, resources.ThreadID, openai.MessageRequest{
 		Role:    string(openai.ThreadMessageRoleUser),
-		Content: "Please write a description for the related issue as if the code hadn't been written yet. This should describe the problem, requirements, and goals that this code is solving. Keep it concise but comprehensive.",
+		Content: content,
 		Attachments: []openai.ThreadAttachment{
 			{
 				FileID: resources.FileID,
@@ -236,7 +291,7 @@ func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to create OpenAI message for issue description: %w", err)
+		return "", "", fmt.Errorf("failed to create OpenAI message for issue description: %w", err)
 	}
 
 	// Create a run for the issue description
@@ -244,13 +299,13 @@ func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (
 		AssistantID: resources.AssistantID,
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to create OpenAI run for issue description: %w", err)
+		return "", "", fmt.Errorf("failed to create OpenAI run for issue description: %w", err)
 	}
 
 	// Poll until the run is completed
 	runResult, err := PollRun(ctx, resources.Client, resources.ThreadID, run.ID)
 	if err != nil {
-		return "", fmt.Errorf("failed to wait for OpenAI run completion: %w", err)
+		return "", "", fmt.Errorf("failed to wait for OpenAI run completion: %w", err)
 	}
 	run = *runResult
 
@@ -259,7 +314,7 @@ func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (
 	order := "desc"
 	messages, err := resources.Client.ListMessage(ctx, resources.ThreadID, &limit, &order, nil, nil, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to list OpenAI messages: %w", err)
+		return "", "", fmt.Errorf("failed to list OpenAI messages: %w", err)
 	}
 
 	// The first message should now be the assistant's response for the issue description
@@ -275,8 +330,16 @@ func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (
 	}
 
 	if description == "" {
-		return "", fmt.Errorf("failed to get an issue description from OpenAI")
+		return "", "", fmt.Errorf("failed to get an issue description from OpenAI")
 	}
 
-	return description, nil
+	// Check if the first line contains a title in markdown format
+	title := ""
+	if strings.HasPrefix(description, "## ") {
+		lines := strings.Split(description, "\n")
+		title = strings.TrimSpace(strings.TrimPrefix(lines[0], "## "))
+		description = strings.TrimSpace(strings.Join(lines[1:], "\n"))
+	}
+
+	return title, description, nil
 }
