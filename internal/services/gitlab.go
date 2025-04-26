@@ -21,6 +21,7 @@ type GitlabIssue struct {
 	Title       string
 	Labels      []string
 	MilestoneID int
+	WebURL      string
 }
 
 // GitlabMergeRequest represents a GitLab merge request
@@ -211,6 +212,7 @@ func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
 		Title:       issue.Title,
 		Labels:      issue.Labels,
 		MilestoneID: milestoneID,
+		WebURL:      issue.WebURL,
 	}, nil
 }
 
@@ -253,4 +255,83 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		WebURL:  result.WebURL,
 		IsDraft: isDraft,
 	}, nil
+}
+
+// GetMergeRequestDiff returns the diff of a merge request
+func (p *GitlabProject) GetMergeRequestDiff(mrIID int) (string, error) {
+	// Get all versions of the merge request diffs
+	versions, _, err := p.client.MergeRequests.GetMergeRequestDiffVersions(p.pid, mrIID, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get merge request diff versions: %w", err)
+	}
+
+	if len(versions) == 0 {
+		return "", fmt.Errorf("no diff versions found for merge request")
+	}
+
+	// Get the latest version
+	latestVersion := versions[0].ID
+	diff, _, err := p.client.MergeRequests.GetSingleMergeRequestDiffVersion(p.pid, mrIID, latestVersion, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get merge request diff: %w", err)
+	}
+
+	var diffContent strings.Builder
+	for _, change := range diff.Diffs {
+		diffContent.WriteString(fmt.Sprintf("--- a/%s\n", change.OldPath))
+		diffContent.WriteString(fmt.Sprintf("+++ b/%s\n", change.NewPath))
+		diffContent.WriteString(change.Diff)
+		diffContent.WriteString("\n")
+	}
+
+	return diffContent.String(), nil
+}
+
+// UpdateMergeRequestDescription updates the description of a merge request
+func (p *GitlabProject) UpdateMergeRequestDescription(mrIID int, description string) error {
+	// Keep the "Closes #X" reference if it exists
+	existingMR, _, err := p.client.MergeRequests.GetMergeRequest(p.pid, mrIID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get merge request: %w", err)
+	}
+
+	// Check if the description contains a reference to an issue and preserve it
+	var updatedDescription string
+	lines := strings.Split(existingMR.Description, "\n")
+	issueRef := ""
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Closes #") || strings.HasPrefix(line, "Related to #") {
+			issueRef = line
+			break
+		}
+	}
+
+	if issueRef != "" {
+		updatedDescription = fmt.Sprintf("%s\n\n%s", issueRef, description)
+	} else {
+		updatedDescription = description
+	}
+
+	// Update merge request
+	_, _, err = p.client.MergeRequests.UpdateMergeRequest(p.pid, mrIID, &gitlab.UpdateMergeRequestOptions{
+		Description: &updatedDescription,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update merge request description: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateIssueDescription updates the description of an issue
+func (p *GitlabProject) UpdateIssueDescription(issueIID int, description string) error {
+	// Update issue
+	_, _, err := p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
+		Description: &description,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update issue description: %w", err)
+	}
+
+	return nil
 }

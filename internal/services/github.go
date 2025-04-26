@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"strings"
 
@@ -19,9 +21,10 @@ type GithubProject struct {
 
 // GithubIssue represents a GitHub issue
 type GithubIssue struct {
-	Number int
-	Title  string
-	Labels []string
+	Number  int
+	Title   string
+	Labels  []string
+	HTMLURL string
 }
 
 // GithubPullRequest represents a GitHub pull request
@@ -158,22 +161,116 @@ func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch stri
 	}, nil
 }
 
+// GetPullRequestDiff returns the diff of a pull request
+func (p *GithubProject) GetPullRequestDiff(prNumber int) (string, error) {
+	// Get the diff using the raw API
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return "", fmt.Errorf("GITHUB_TOKEN environment variable is required")
+	}
+
+	// Create HTTP client with token
+	client := &http.Client{}
+	diffURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", p.owner, p.repo, prNumber)
+	req, err := http.NewRequest("GET", diffURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add headers
+	req.Header.Add("Accept", "application/vnd.github.v3.diff")
+	req.Header.Add("Authorization", "token "+token)
+
+	// Make the request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to get pull request diff: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Read the diff content
+	diffContent, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read diff content: %w", err)
+	}
+
+	return string(diffContent), nil
+}
+
+// UpdatePullRequestDescription updates the description of a pull request
+func (p *GithubProject) UpdatePullRequestDescription(prNumber int, description string) error {
+	ctx := context.Background()
+
+	// Get current PR to preserve metadata
+	pr, _, err := p.client.PullRequests.Get(ctx, p.owner, p.repo, prNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get pull request: %w", err)
+	}
+
+	// Check if the description contains a reference to an issue and preserve it
+	var updatedDescription string
+	lines := strings.Split(pr.GetBody(), "\n")
+	issueRef := ""
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Closes #") || strings.HasPrefix(line, "Fixes #") || strings.HasPrefix(line, "Resolves #") {
+			issueRef = line
+			break
+		}
+	}
+
+	if issueRef != "" {
+		updatedDescription = fmt.Sprintf("%s\n\n%s", issueRef, description)
+	} else {
+		updatedDescription = description
+	}
+
+	// Update the pull request
+	updatePR := &github.PullRequest{
+		Body: &updatedDescription,
+	}
+
+	_, _, err = p.client.PullRequests.Edit(ctx, p.owner, p.repo, prNumber, updatePR)
+	if err != nil {
+		return fmt.Errorf("failed to update pull request description: %w", err)
+	}
+
+	return nil
+}
+
+// UpdateIssueDescription updates the description of an issue
+func (p *GithubProject) UpdateIssueDescription(issueNumber int, description string) error {
+	ctx := context.Background()
+
+	// Update the issue
+	updateIssue := &github.IssueRequest{
+		Body: &description,
+	}
+
+	_, _, err := p.client.Issues.Edit(ctx, p.owner, p.repo, issueNumber, updateIssue)
+	if err != nil {
+		return fmt.Errorf("failed to update issue description: %w", err)
+	}
+
+	return nil
+}
+
 // GetIssue returns an issue by its number
 func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
-	issue, _, err := p.client.Issues.Get(context.Background(), p.owner, p.repo, issueNumber)
+	ctx := context.Background()
+	issue, _, err := p.client.Issues.Get(ctx, p.owner, p.repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
 	}
 
-	// Extract label names
-	labels := make([]string, 0, len(issue.Labels))
+	var labels []string
 	for _, label := range issue.Labels {
 		labels = append(labels, *label.Name)
 	}
 
 	return &GithubIssue{
-		Number: issue.GetNumber(),
-		Title:  issue.GetTitle(),
-		Labels: labels,
+		Number:  *issue.Number,
+		Title:   *issue.Title,
+		Labels:  labels,
+		HTMLURL: *issue.HTMLURL,
 	}, nil
 }
