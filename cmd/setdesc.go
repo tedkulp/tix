@@ -390,15 +390,21 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 	fmt.Println("Generating issue description...")
 
 	// Generate the description
-	issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources)
+	title, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources)
 	if err != nil {
 		return fmt.Errorf("failed to generate issue description: %w", err)
 	}
 
 	// Show the description and prompt for confirmation
-	fmt.Println("\n========== ISSUE DESCRIPTION ==========")
+	fmt.Println()
+	if title != "" {
+		fmt.Println("========== ISSUE TITLE ==========")
+		fmt.Println(title)
+	}
+	fmt.Println("========== ISSUE DESCRIPTION ==========")
 	fmt.Println(issueDescription)
-	fmt.Println("========================================\n")
+	fmt.Println("========================================")
+	fmt.Println()
 
 	confirm := promptui.Prompt{
 		Label:     "Update issue description",
@@ -419,6 +425,12 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 			return fmt.Errorf("failed to create GitLab client: %w", err)
 		}
 
+		if title != "" {
+			if err := project.UpdateIssueTitle(repoInfo.IssueNumber, title); err != nil {
+				return fmt.Errorf("failed to update issue title: %w", err)
+			}
+		}
+
 		if err := project.UpdateIssueDescription(repoInfo.IssueNumber, issueDescription); err != nil {
 			return fmt.Errorf("failed to update issue description: %w", err)
 		}
@@ -427,6 +439,12 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 		project, err := services.NewGithubProject(repoInfo.Repo.GithubRepo)
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub client: %w", err)
+		}
+
+		if title != "" {
+			if err := project.UpdateIssueTitle(repoInfo.IssueNumber, title); err != nil {
+				return fmt.Errorf("failed to update issue title: %w", err)
+			}
 		}
 
 		if err := project.UpdateIssueDescription(repoInfo.IssueNumber, issueDescription); err != nil {

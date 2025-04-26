@@ -335,3 +335,16 @@ func (p *GitlabProject) UpdateIssueDescription(issueIID int, description string)
 
 	return nil
 }
+
+// UpdateIssueTitle updates the title of an issue
+func (p *GitlabProject) UpdateIssueTitle(issueIID int, title string) error {
+	// Update issue
+	_, _, err := p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
+		Title: &title,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update issue title: %w", err)
+	}
+
+	return nil
+}
