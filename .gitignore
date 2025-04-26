@@ -37,3 +37,5 @@ main
 
 # GoReleaser
 /dist/
+
+test-repo*
