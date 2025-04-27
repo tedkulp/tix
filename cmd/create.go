@@ -5,9 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
-	"github.com/manifoldco/promptui"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/tedkulp/tix/internal/config"
 	"github.com/tedkulp/tix/internal/git"
@@ -144,8 +143,7 @@ func setupRepository() (*RepoSettings, error) {
 	// Find repo that matches the current directory, or the best candidate
 	var matchingRepo *config.Repository
 	var repoName string
-	var matchingRepoIdx int = -1 // Index of matching repo in the list
-	var bestMatchLength int = 0  // Length of the best match so far
+	var bestMatchLength int = 0 // Length of the best match so far
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {
@@ -160,7 +158,6 @@ func setupRepository() (*RepoSettings, error) {
 			if len(absRepoDir) > bestMatchLength {
 				matchingRepo = &cfg.Repositories[i]
 				repoName = repoNames[i]
-				matchingRepoIdx = i
 				bestMatchLength = len(absRepoDir)
 			}
 		}
@@ -179,20 +176,24 @@ func setupRepository() (*RepoSettings, error) {
 	var selectedRepoName string
 
 	if len(repoNames) > 1 { // Only show the selector if there's more than one repo
-		prompt := promptui.Select{
-			Label: "Select a repository",
-			Items: repoNames,
-		}
+		// Use pterm's interactive select component
+		selectedName, err := pterm.DefaultInteractiveSelect.
+			WithOptions(repoNames).
+			WithDefaultText("Select a repository").
+			WithDefaultOption(repoName).
+			Show()
 
-		// If we found a matching repo, start with that as the cursor position
-		if matchingRepoIdx >= 0 {
-			prompt.CursorPos = matchingRepoIdx
-			prompt.Label = fmt.Sprintf("Select a repository (default: %s)", repoName)
-		}
-
-		selectedIdx, selectedName, err := prompt.Run()
 		if err != nil {
 			return nil, fmt.Errorf("failed to select repository: %w", err)
+		}
+
+		// Find the index of the selected repository
+		var selectedIdx int
+		for i, name := range repoNames {
+			if name == selectedName {
+				selectedIdx = i
+				break
+			}
 		}
 
 		selectedRepo = &cfg.Repositories[selectedIdx]
@@ -272,55 +273,48 @@ func openAndValidateRepo(directory string) (*git.Repository, error) {
 	return gitRepo, nil
 }
 
-// promptForTitle prompts for and validates the issue title
+// promptForTitle prompts the user for a title for the issue
 func promptForTitle() (string, error) {
-	prompt := promptui.Prompt{
-		Label: "Title of issue",
-		Validate: func(input string) error {
-			if len(input) > 255 {
-				return fmt.Errorf("title must be less than 255 characters")
-			}
-			return nil
-		},
+	result, err := pterm.DefaultInteractiveTextInput.
+		WithDefaultText("Enter issue title").
+		Show()
+
+	if err != nil {
+		return "", err
 	}
-	return prompt.Run()
+
+	if strings.TrimSpace(result) == "" {
+		return "", fmt.Errorf("title cannot be empty")
+	}
+
+	return result, nil
 }
 
-// promptForLabels prompts for issue labels
+// promptForLabels prompts the user for labels for the issue
 func promptForLabels(defaultLabels string) (string, error) {
-	labelPrompt := promptui.Prompt{
-		Label:   "Labels (comma separated)",
-		Default: defaultLabels,
-	}
-	labels, err := labelPrompt.Run()
+	result, err := pterm.DefaultInteractiveTextInput.
+		WithDefaultText("Enter labels (comma separated)").
+		WithDefaultValue(defaultLabels).
+		Show()
+
 	if err != nil {
-		return "", fmt.Errorf("failed to get labels: %w", err)
+		return "", err
 	}
 
-	logger.Info("Labels set", map[string]interface{}{
-		"labels": labels,
-	})
-	return labels, nil
+	return result, nil
 }
 
-// promptForMilestone prompts for milestone (GitLab specific)
+// promptForMilestone prompts the user for a milestone for the issue
 func promptForMilestone() (string, error) {
-	// Calculate default milestone based on current date
-	defaultMilestone := utils.GenerateMilestone(time.Now())
+	result, err := pterm.DefaultInteractiveTextInput.
+		WithDefaultText("Enter milestone").
+		Show()
 
-	milestonePrompt := promptui.Prompt{
-		Label:   "Milestone",
-		Default: defaultMilestone,
-	}
-	milestone, err := milestonePrompt.Run()
 	if err != nil {
-		return "", fmt.Errorf("failed to get milestone: %w", err)
+		return "", err
 	}
 
-	logger.Info("Milestone set", map[string]interface{}{
-		"milestone": milestone,
-	})
-	return milestone, nil
+	return result, nil
 }
 
 // createIssue creates a new issue using the provider

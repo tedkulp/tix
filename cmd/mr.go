@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/manifoldco/promptui"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/tedkulp/tix/internal/config"
 	"github.com/tedkulp/tix/internal/git"
@@ -78,18 +78,28 @@ It will extract the issue number from the branch name and create a merge request
 				return fmt.Errorf("no repositories configured - add repositories to your config file")
 			}
 
-			prompt := promptui.Select{
-				Label: "Select a repository",
-				Items: repoNames,
-			}
+			// Use pterm's interactive select component
+			selectedName, err := pterm.DefaultInteractiveSelect.
+				WithOptions(repoNames).
+				WithDefaultText("Select a repository").
+				WithDefaultOption(repoName).
+				Show()
 
-			idx, name, err := prompt.Run()
 			if err != nil {
 				return fmt.Errorf("repository selection cancelled")
 			}
 
-			matchingRepo = &cfg.Repositories[idx]
-			repoName = name
+			// Find the index of the selected repository
+			var selectedIdx int
+			for i, name := range repoNames {
+				if name == selectedName {
+					selectedIdx = i
+					break
+				}
+			}
+
+			matchingRepo = &cfg.Repositories[selectedIdx]
+			repoName = selectedName
 		}
 
 		logger.Info("Repository selected", map[string]interface{}{

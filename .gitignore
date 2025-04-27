@@ -38,4 +38,5 @@ main
 # GoReleaser
 /dist/
 
+/tix
 test-repo*

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/manifoldco/promptui"
+	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"github.com/tedkulp/tix/internal/config"
 	"github.com/tedkulp/tix/internal/git"
@@ -154,7 +154,6 @@ func selectRepository() (*RepoInfo, error) {
 	// Find repo that matches the current directory, or the best candidate
 	var matchingRepo *config.Repository
 	var repoName string
-	var matchingRepoIdx int = -1
 	var bestMatchLength int = 0
 
 	repoNames := cfg.GetRepoNames()
@@ -170,7 +169,6 @@ func selectRepository() (*RepoInfo, error) {
 			if len(absRepoDir) > bestMatchLength {
 				matchingRepo = &cfg.Repositories[i]
 				repoName = repo.Name
-				matchingRepoIdx = i
 				bestMatchLength = len(absRepoDir)
 			}
 		}
@@ -189,20 +187,24 @@ func selectRepository() (*RepoInfo, error) {
 	var selectedRepoName string
 
 	if len(repoNames) > 1 {
-		prompt := promptui.Select{
-			Label: "Select a repository",
-			Items: repoNames,
-		}
+		// Use pterm's interactive select component
+		selectedName, err := pterm.DefaultInteractiveSelect.
+			WithOptions(repoNames).
+			WithDefaultText("Select a repository").
+			WithDefaultOption(repoName).
+			Show()
 
-		// If we found a matching repo, start with that as the cursor position
-		if matchingRepoIdx >= 0 {
-			prompt.CursorPos = matchingRepoIdx
-			prompt.Label = fmt.Sprintf("Select a repository (default: %s)", repoName)
-		}
-
-		selectedIdx, selectedName, err := prompt.Run()
 		if err != nil {
 			return nil, fmt.Errorf("failed to select repository: %w", err)
+		}
+
+		// Find the index of the selected repository
+		var selectedIdx int
+		for i, name := range repoNames {
+			if name == selectedName {
+				selectedIdx = i
+				break
+			}
 		}
 
 		selectedRepo = &cfg.Repositories[selectedIdx]
@@ -293,22 +295,32 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 		return nil, err
 	}
 
-	// If multiple MRs found, let user select
+	// Get merge request titles to display to the user
+	mrTitles := make([]string, len(mrInfo.OpenRequests))
+	for i, mr := range mrInfo.OpenRequests {
+		mrTitles[i] = fmt.Sprintf("%s (#%d)", mr.Title, mr.IID)
+	}
+
+	// If multiple merge requests are found, ask the user to select one
 	var selectedMR services.MRDescriptionResult
 	if len(mrInfo.OpenRequests) > 1 {
-		mrTitles := make([]string, len(mrInfo.OpenRequests))
-		for i, mr := range mrInfo.OpenRequests {
-			mrTitles[i] = fmt.Sprintf("#%d: %s", mr.IID, mr.Title)
-		}
+		// Use pterm's interactive select component
+		selectedTitle, err := pterm.DefaultInteractiveSelect.
+			WithOptions(mrTitles).
+			WithDefaultText("Select a merge request").
+			Show()
 
-		prompt := promptui.Select{
-			Label: "Select a merge request",
-			Items: mrTitles,
-		}
-
-		idx, _, err := prompt.Run()
 		if err != nil {
 			return nil, fmt.Errorf("failed to select merge request: %w", err)
+		}
+
+		// Find the index of the selected merge request
+		var idx int
+		for i, title := range mrTitles {
+			if title == selectedTitle {
+				idx = i
+				break
+			}
 		}
 
 		selectedMR = mrInfo.OpenRequests[idx]
@@ -357,14 +369,17 @@ func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.
 	fmt.Println(mrDescription)
 	fmt.Println("=============================================\n")
 
-	confirm := promptui.Prompt{
-		Label:     "Update merge request description",
-		IsConfirm: true,
+	// Get user confirmation for updating MR description
+	result, err := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(true).
+		WithDefaultText("Do you want to update the merge request description?").
+		Show()
+
+	if err != nil {
+		return fmt.Errorf("cancelled updating merge request description")
 	}
 
-	_, err = confirm.Run()
-	if err != nil {
-		fmt.Println("Description update canceled.")
+	if !result {
 		return nil
 	}
 
@@ -400,14 +415,17 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 	fmt.Println("========================================")
 	fmt.Println()
 
-	confirm := promptui.Prompt{
-		Label:     "Update issue description",
-		IsConfirm: true,
+	// Get user confirmation for issue description update
+	result, err := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(true).
+		WithDefaultText("Do you want to update the issue description?").
+		Show()
+
+	if err != nil {
+		return fmt.Errorf("cancelled updating issue description")
 	}
 
-	_, err = confirm.Run()
-	if err != nil {
-		fmt.Println("Issue description update canceled.")
+	if !result {
 		return nil
 	}
 
