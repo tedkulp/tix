@@ -64,12 +64,6 @@ func NewGitHubIssueProvider(repo string) (*GitHubIssueProvider, error) {
 // CreateIssue implements the IssueProvider interface for GitHub
 // Note: GitHub doesn't use the milestone parameter
 func (p *GitHubIssueProvider) CreateIssue(title, labels string, selfAssign bool, milestone string) (*IssueCreationResult, error) {
-	// GitHub doesn't support milestone at creation time via this interface
-	if milestone != "" {
-		// Just log a warning that milestone isn't supported for GitHub
-		// We don't want to return an error here
-	}
-
 	issue, err := p.project.CreateIssue(title, labels, selfAssign)
 	if err != nil {
 		return nil, err

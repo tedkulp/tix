@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -189,7 +189,7 @@ func (p *GithubProject) GetPullRequestDiff(prNumber int) (string, error) {
 	defer resp.Body.Close()
 
 	// Read the diff content
-	diffContent, err := ioutil.ReadAll(resp.Body)
+	diffContent, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to read diff content: %w", err)
 	}
