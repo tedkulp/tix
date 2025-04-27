@@ -367,7 +367,8 @@ func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.
 	// Show the description and prompt for confirmation
 	fmt.Println("\n========== MERGE REQUEST DESCRIPTION ==========")
 	fmt.Println(mrDescription)
-	fmt.Println("=============================================\n")
+	fmt.Println("=============================================")
+	fmt.Println()
 
 	// Get user confirmation for updating MR description
 	result, err := pterm.DefaultInteractiveConfirm.
