@@ -6,9 +6,10 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
   packages: write
   issues: write
+  contents: write # Needed to push to repos
+  id-token: write # Sometimes needed for newer GitHub tokens
 
 jobs:
   goreleaser:
