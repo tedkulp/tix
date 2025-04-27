@@ -70,6 +70,7 @@ brews:
   - repository:
       owner: tedkulp
       name: homebrew-tap
+      token: '{{ .Env.HOMEBREW_TOKEN }}'
     directory: Formula
     homepage: https://github.com/tedkulp/tix
     description: A CLI tool for creating tickets and branches in Git repositories
