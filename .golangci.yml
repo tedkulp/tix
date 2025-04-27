@@ -20,9 +20,9 @@ issues:
     - path: _test\.go
       linters:
         - errcheck
+  exclude-dirs:
+    - bin
+    - dist
 
 run:
   timeout: 5m
-  skip-dirs:
-    - bin
-    - dist 
