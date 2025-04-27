@@ -32,6 +32,19 @@ type GitlabMergeRequest struct {
 	IsDraft bool
 }
 
+// CreateMergeRequestOptions contains the optional parameters for creating a merge request
+type CreateMergeRequestOptions struct {
+	IsDraft            bool
+	IssueLabels        []string
+	MilestoneID        int
+	RemoveSourceBranch bool
+}
+
+// GitLabProvider adapts GitlabProject to the SCMProvider interface
+type GitLabProvider struct {
+	project *GitlabProject
+}
+
 // NewGitlabProject creates a new GitLab project client
 func NewGitlabProject(repoName string) (*GitlabProject, error) {
 	token := os.Getenv("GITLAB_TOKEN")
@@ -217,9 +230,9 @@ func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
 }
 
 // CreateMergeRequest creates a new merge request in the repository
-func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, isDraft bool, issueLabels []string, milestoneid int) (*GitlabMergeRequest, error) {
+func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, options CreateMergeRequestOptions) (*GitlabMergeRequest, error) {
 	// Add "Draft:" prefix if it's a draft MR
-	if isDraft {
+	if options.IsDraft {
 		title = "Draft: " + title
 	}
 
@@ -227,21 +240,22 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 
 	// Create MR options
 	opt := &gitlab.CreateMergeRequestOptions{
-		Title:        &title,
-		SourceBranch: &sourceBranch,
-		TargetBranch: &targetBranch,
-		Description:  &description,
+		Title:              &title,
+		SourceBranch:       &sourceBranch,
+		TargetBranch:       &targetBranch,
+		Description:        &description,
+		RemoveSourceBranch: &options.RemoveSourceBranch,
 	}
 
 	// Add labels if provided
-	if len(issueLabels) > 0 {
-		labelsOpt := gitlab.LabelOptions(issueLabels)
+	if len(options.IssueLabels) > 0 {
+		labelsOpt := gitlab.LabelOptions(options.IssueLabels)
 		opt.Labels = &labelsOpt
 	}
 
 	// Add milestone if provided
-	if milestoneid > 0 {
-		opt.MilestoneID = &milestoneid
+	if options.MilestoneID > 0 {
+		opt.MilestoneID = &options.MilestoneID
 	}
 
 	result, _, err := p.client.MergeRequests.CreateMergeRequest(p.pid, opt)
@@ -253,7 +267,7 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		IID:     result.IID,
 		Title:   result.Title,
 		WebURL:  result.WebURL,
-		IsDraft: isDraft,
+		IsDraft: options.IsDraft,
 	}, nil
 }
 
@@ -347,4 +361,89 @@ func (p *GitlabProject) UpdateIssueTitle(issueIID int, title string) error {
 	}
 
 	return nil
+}
+
+// NewGitLabProvider creates a new GitLab provider
+func NewGitLabProvider(repo string) (*GitLabProvider, error) {
+	project, err := NewGitlabProject(repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GitLabProvider{
+		project: project,
+	}, nil
+}
+
+// GetOpenRequests returns the open merge requests related to an issue
+func (p *GitLabProvider) GetOpenRequests(issueNumber int) ([]RequestResult, error) {
+	gitlabMRs, err := p.project.GetOpenMergeRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]RequestResult, len(gitlabMRs))
+	for i, mr := range gitlabMRs {
+		results[i] = RequestResult{
+			ID:      mr.IID,
+			Title:   mr.Title,
+			URL:     mr.WebURL,
+			IsDraft: mr.IsDraft,
+		}
+	}
+
+	return results, nil
+}
+
+// CreateMergeRequest implements the SCMProvider interface
+func (p *GitLabProvider) CreateMergeRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, labels []string, milestoneID int, removeSourceBranch bool) (*RequestResult, error) {
+	options := CreateMergeRequestOptions{
+		IsDraft:            isDraft,
+		IssueLabels:        labels,
+		MilestoneID:        milestoneID,
+		RemoveSourceBranch: removeSourceBranch,
+	}
+
+	mr, err := p.project.CreateMergeRequest(title, sourceBranch, targetBranch, issueNumber, options)
+	if err != nil {
+		// Check if this is a "merge request already exists" error
+		if strings.Contains(err.Error(), "Another open merge request already exists for this source branch") {
+			// Extract the MR number from the error message - it looks like "!3" at the end
+			parts := strings.Split(err.Error(), ":")
+			if len(parts) > 0 {
+				lastPart := strings.TrimSpace(parts[len(parts)-1])
+				mrNumber := strings.Trim(lastPart, "![]")
+				mrURL := fmt.Sprintf("https://gitlab.com/%s/-/merge_requests/%s", p.project.pid, mrNumber)
+				return nil, fmt.Errorf("a merge request already exists for this branch.\nView existing merge request: %s", mrURL)
+			}
+		}
+		return nil, err
+	}
+
+	return &RequestResult{
+		ID:      mr.IID,
+		Title:   mr.Title,
+		URL:     mr.WebURL,
+		IsDraft: mr.IsDraft,
+	}, nil
+}
+
+// GetIssue implements the SCMProvider interface
+func (p *GitLabProvider) GetIssue(issueNumber int) (*IssueResult, error) {
+	issue, err := p.project.GetIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	return &IssueResult{
+		Number:      issue.IID,
+		Title:       issue.Title,
+		Labels:      issue.Labels,
+		MilestoneID: issue.MilestoneID,
+	}, nil
+}
+
+// GetURL returns the GitLab URL for the repo
+func (p *GitLabProvider) GetURL() string {
+	return fmt.Sprintf("https://gitlab.com/%s", p.project.pid)
 }

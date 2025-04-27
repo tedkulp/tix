@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -17,6 +18,9 @@ var rootCmd = &cobra.Command{
 	Short: "A CLI tool for creating tickets and branches",
 	Long: `Tix is a CLI tool that helps you create tickets and branches
 in your Git repositories, with support for both GitHub and GitLab.`,
+	// Silence usage and errors output to provide cleaner error messages
+	SilenceUsage:  true, // Don't display usage on error
+	SilenceErrors: true, // Let us handle the errors
 	// Only initialize logging for actual command execution (not help)
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		// Skip logging initialization for help and completion commands
@@ -60,7 +64,13 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 }
 
 func Execute() error {
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	// Handle errors here instead of Cobra's default handling
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		return err
+	}
+	return nil
 }
 
 func init() {

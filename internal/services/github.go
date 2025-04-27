@@ -291,3 +291,97 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 		HTMLURL: *issue.HTMLURL,
 	}, nil
 }
+
+// GitHubProvider adapts GithubProject to the SCMProvider interface
+type GitHubProvider struct {
+	project *GithubProject
+}
+
+// NewGitHubProvider creates a new GitHub provider
+func NewGitHubProvider(repo string) (*GitHubProvider, error) {
+	project, err := NewGithubProject(repo)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GitHubProvider{
+		project: project,
+	}, nil
+}
+
+// GetOpenRequests returns the open pull requests related to an issue
+func (p *GitHubProvider) GetOpenRequests(issueNumber int) ([]RequestResult, error) {
+	githubPRs, err := p.project.GetOpenPullRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]RequestResult, len(githubPRs))
+	for i, pr := range githubPRs {
+		results[i] = RequestResult{
+			ID:      pr.Number,
+			Title:   pr.Title,
+			URL:     pr.HTMLURL,
+			IsDraft: pr.IsDraft,
+		}
+	}
+
+	return results, nil
+}
+
+// CreateMergeRequest implements the SCMProvider interface
+func (p *GitHubProvider) CreateMergeRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, labels []string, milestoneID int, removeSourceBranch bool) (*RequestResult, error) {
+	// GitHub API doesn't support removeSourceBranch option directly,
+	// it would have to be done via repository settings or post-PR operation
+
+	pr, err := p.project.CreatePullRequest(title, sourceBranch, targetBranch, issueNumber, isDraft, labels)
+	if err != nil {
+		// Check for GitHub's "pull request already exists" error
+		// GitHub error message contains something like "A pull request already exists for octocat:patch-1."
+		if strings.Contains(err.Error(), "pull request already exists") {
+			// We don't have the PR number in the error message, but we can try to find it from open PRs
+			openPRs, prErr := p.project.GetOpenPullRequestsForIssue(issueNumber)
+			if prErr == nil && len(openPRs) > 0 {
+				for _, existingPR := range openPRs {
+					// Try to find a PR with the matching branch
+					if strings.Contains(existingPR.Title, sourceBranch) {
+						return nil, fmt.Errorf("a pull request already exists for this branch.\nView existing pull request: %s", existingPR.HTMLURL)
+					}
+				}
+			}
+			// If we couldn't find the specific PR, at least provide a generic error with repo URL
+			repoURL := fmt.Sprintf("https://github.com/%s/%s/pulls", p.project.owner, p.project.repo)
+			return nil, fmt.Errorf("a pull request already exists for this branch.\nView your pull requests: %s", repoURL)
+		}
+		return nil, err
+	}
+
+	return &RequestResult{
+		ID:      pr.Number,
+		Title:   pr.Title,
+		URL:     pr.HTMLURL,
+		IsDraft: pr.IsDraft,
+	}, nil
+}
+
+// GetIssue implements the SCMProvider interface
+func (p *GitHubProvider) GetIssue(issueNumber int) (*IssueResult, error) {
+	issue, err := p.project.GetIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// GitHub issues don't have milestoneID in the same format
+	// We'll leave it as 0 for now
+	return &IssueResult{
+		Number:      issue.Number,
+		Title:       issue.Title,
+		Labels:      issue.Labels,
+		MilestoneID: 0, // GitHub uses a different milestone format
+	}, nil
+}
+
+// GetURL returns the GitHub URL for the repo
+func (p *GitHubProvider) GetURL() string {
+	return fmt.Sprintf("https://github.com/%s/%s", p.project.owner, p.project.repo)
+}
