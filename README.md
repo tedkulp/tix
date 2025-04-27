@@ -7,9 +7,11 @@ A CLI tool for creating tickets and branches in Git repositories, with support f
 - Create tickets in GitHub or GitLab
 - Automatically create and checkout branches
 - Create draft merge requests/pull requests
+- Generate AI-powered descriptions for merge requests and issues
 - Support for Git worktrees
 - Interactive repository selection
-- Configurable default labels
+- Auto-detect repository based on current directory
+- Configurable default labels and milestone generation
 - YAML configuration
 
 ## Installation
@@ -28,6 +30,7 @@ repositories:
     github_repo: username/repo
     directory: ~/src/my-project
     default_labels: bug,enhancement
+    default_branch: main
   - name: another-project
     gitlab_repo: group/project
     directory: ~/src/another-project
@@ -41,18 +44,60 @@ repositories:
 
 - `GITHUB_TOKEN`: GitHub API token (required for GitHub repositories)
 - `GITLAB_TOKEN`: GitLab API token (required for GitLab repositories)
+- `OPENAI_API_KEY`: OpenAI API key (required for AI-powered descriptions)
 
 ## Usage
 
+### Create a new ticket and branch
+
 ```bash
-# Create a new ticket and branch
+# Create a new ticket interactively
 tix create
 
 # Create a new ticket with a specific title
 tix create --title "Add new feature"
 
+# Create a new ticket and assign it to yourself
+tix create --self-assign
+```
+
+### Create a merge request/pull request
+
+```bash
 # Create a merge request/pull request for the current branch
 tix mr
+
+# Create a draft merge request/pull request
+tix mr --draft
+
+# Use a specific remote (default is 'origin')
+tix mr --remote upstream
+```
+
+### Generate descriptions with AI
+
+```bash
+# Generate and update descriptions for the current merge request and issue
+tix setdesc
+```
+
+### Show version information
+
+```bash
+# Display version information
+tix version
+```
+
+## Options
+
+Global options that can be used with any command:
+
+```bash
+# Enable verbose logging
+tix --verbose
+
+# Use a specific config file
+tix --config /path/to/config.yml
 ```
 
 ## License

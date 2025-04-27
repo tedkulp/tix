@@ -31,7 +31,7 @@ It will extract the issue number from the branch name and create a merge request
 
 		cfg, err := config.Load()
 		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+			return fmt.Errorf("couldn't load configuration file. Run with --verbose for details")
 		}
 
 		logger.Debug("Config loaded successfully", map[string]interface{}{
@@ -41,7 +41,7 @@ It will extract the issue number from the branch name and create a merge request
 		// Try to find the repository based on current directory
 		wd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to get current directory: %w", err)
+			return fmt.Errorf("failed to determine current directory")
 		}
 
 		logger.Debug("Current directory", map[string]interface{}{
@@ -51,6 +51,8 @@ It will extract the issue number from the branch name and create a merge request
 		// Find repo that matches the current directory
 		var matchingRepo *config.Repository
 		var repoName string
+		var bestMatchLength int = 0 // Track the best match length
+
 		for _, repo := range cfg.Repositories {
 			absRepoDir, err := filepath.Abs(repo.Directory)
 			if err != nil {
@@ -59,15 +61,23 @@ It will extract the issue number from the branch name and create a merge request
 
 			// Check if current directory is within the repo directory
 			if strings.HasPrefix(wd, absRepoDir) {
-				matchingRepo = &repo
-				repoName = repo.Name
-				break
+				// If we found a better match (longer path), use it
+				if len(absRepoDir) > bestMatchLength {
+					matchingRepo = &repo
+					repoName = repo.Name
+					bestMatchLength = len(absRepoDir)
+				}
 			}
 		}
 
 		// If no matching repo found, show selector
 		if matchingRepo == nil {
 			repoNames := cfg.GetRepoNames()
+
+			if len(repoNames) == 0 {
+				return fmt.Errorf("no repositories configured - add repositories to your config file")
+			}
+
 			prompt := promptui.Select{
 				Label: "Select a repository",
 				Items: repoNames,
@@ -75,7 +85,7 @@ It will extract the issue number from the branch name and create a merge request
 
 			idx, name, err := prompt.Run()
 			if err != nil {
-				return fmt.Errorf("failed to select repository: %w", err)
+				return fmt.Errorf("repository selection cancelled")
 			}
 
 			matchingRepo = &cfg.Repositories[idx]
@@ -86,31 +96,16 @@ It will extract the issue number from the branch name and create a merge request
 			"repo": repoName,
 		})
 
-		// Validate repository configuration
-		if (matchingRepo.GithubRepo == "" && matchingRepo.GitlabRepo == "") ||
-			(matchingRepo.GithubRepo != "" && matchingRepo.GitlabRepo != "") {
-			logger.Error("Invalid repository configuration", nil, map[string]interface{}{
-				"repo":        repoName,
-				"github_repo": matchingRepo.GithubRepo,
-				"gitlab_repo": matchingRepo.GitlabRepo,
-			})
-			return fmt.Errorf("repository must have exactly one of github_repo or gitlab_repo... %+v", matchingRepo)
-		}
-
-		logger.Debug("Opening git repository", map[string]interface{}{
-			"directory": matchingRepo.Directory,
-		})
-
 		// Open Git repository
 		gitRepo, err := git.Open(matchingRepo.Directory)
 		if err != nil {
-			return fmt.Errorf("failed to open repository: %w", err)
+			return fmt.Errorf("couldn't open git repository at %s", matchingRepo.Directory)
 		}
 
 		// Get current branch
 		currentBranch, err := gitRepo.GetCurrentBranch()
 		if err != nil {
-			return fmt.Errorf("failed to get current branch: %w", err)
+			return fmt.Errorf("failed to determine current git branch")
 		}
 
 		logger.Info("Current branch", map[string]interface{}{
@@ -120,173 +115,81 @@ It will extract the issue number from the branch name and create a merge request
 		// Extract issue number from branch name
 		issueNumber, err := utils.ExtractIssueNumber(currentBranch)
 		if err != nil {
-			return fmt.Errorf("failed to extract issue number from branch name: %w", err)
+			return fmt.Errorf("couldn't extract issue number from branch name '%s' - use a branch like 'issue-123' or '123-my-feature'", currentBranch)
 		}
 
 		logger.Info("Issue number extracted", map[string]interface{}{
 			"issue": issueNumber,
 		})
 
-		if matchingRepo.GitlabRepo != "" {
-			// Check if there's already an open MR for this issue
-			project, err := services.NewGitlabProject(matchingRepo.GitlabRepo)
-			if err != nil {
-				return fmt.Errorf("failed to create GitLab client: %w", err)
-			}
-
-			openMRs, err := project.GetOpenMergeRequestsForIssue(issueNumber)
-			if err != nil {
-				logger.Warn("Failed to check for existing merge requests", map[string]interface{}{
-					"error": err.Error(),
-				})
-			} else if len(openMRs) > 0 {
-				// Check if any of the MRs use the same branch
-				for _, mr := range openMRs {
-					// If there's already an MR for this branch, just print a message and exit
-					if strings.Contains(mr.Title, currentBranch) {
-						fmt.Printf("A merge request already exists for this branch: %s\n", mr.WebURL)
-						return nil
-					}
-				}
-			}
-
-			// Push current branch to remote
-			logger.Info("Pushing branch to "+remote, map[string]interface{}{
-				"branch": currentBranch,
-				"remote": remote,
-			})
-
-			if err := gitRepo.Push(remote, currentBranch); err != nil {
-				return fmt.Errorf("failed to push to %s: %w", remote, err)
-			}
-
-			logger.Info("Creating GitLab merge request", map[string]interface{}{
-				"branch": currentBranch,
-				"issue":  issueNumber,
-			})
-
-			// Get the default branch from config
-			targetBranch := "main"
-			if matchingRepo.DefaultBranch != "" {
-				targetBranch = matchingRepo.DefaultBranch
-			}
-
-			// Get issue details
-			issue, err := project.GetIssue(issueNumber)
-			if err != nil {
-				return fmt.Errorf("failed to get issue details: %w", err)
-			}
-
-			// Create MR title with issue number and full title
-			mrTitle := fmt.Sprintf("#%d - %s", issueNumber, issue.Title)
-
-			logger.Info("Creating merge request with issue metadata", map[string]interface{}{
-				"issue_title":     issue.Title,
-				"issue_labels":    issue.Labels,
-				"issue_milestone": issue.MilestoneID,
-			})
-
-			// Create merge request
-			mr, err := project.CreateMergeRequest(mrTitle, currentBranch, targetBranch, issueNumber, isDraft, issue.Labels, issue.MilestoneID)
-			if err != nil {
-				return fmt.Errorf("failed to create merge request: %w", err)
-			}
-
-			logger.Info("Merge request created", map[string]interface{}{
-				"title": mr.Title,
-				"id":    mr.IID,
-				"url":   mr.WebURL,
-				"draft": mr.IsDraft,
-			})
-
-			// Open the MR in browser
-			if err := utils.OpenURL(mr.WebURL); err != nil {
-				logger.Warn("Failed to open browser", map[string]interface{}{
-					"error": err.Error(),
-				})
-			}
-
-			fmt.Printf("Created merge request: %s\n", mr.WebURL)
-		} else {
-			// GitHub repository
-			project, err := services.NewGithubProject(matchingRepo.GithubRepo)
-			if err != nil {
-				return fmt.Errorf("failed to create GitHub client: %w", err)
-			}
-
-			openPRs, err := project.GetOpenPullRequestsForIssue(issueNumber)
-			if err != nil {
-				logger.Warn("Failed to check for existing pull requests", map[string]interface{}{
-					"error": err.Error(),
-				})
-			} else if len(openPRs) > 0 {
-				// Check if any of the PRs use the same branch
-				for _, pr := range openPRs {
-					// If there's already a PR for this branch, just print a message and exit
-					if strings.Contains(pr.Title, currentBranch) {
-						fmt.Printf("A pull request already exists for this branch: %s\n", pr.HTMLURL)
-						return nil
-					}
-				}
-			}
-
-			// Push current branch to remote
-			logger.Info("Pushing branch to "+remote, map[string]interface{}{
-				"branch": currentBranch,
-				"remote": remote,
-			})
-
-			if err := gitRepo.Push(remote, currentBranch); err != nil {
-				return fmt.Errorf("failed to push to %s: %w", remote, err)
-			}
-
-			logger.Info("Creating GitHub pull request", map[string]interface{}{
-				"branch": currentBranch,
-				"issue":  issueNumber,
-			})
-
-			// Get the default branch from config
-			targetBranch := "main"
-			if matchingRepo.DefaultBranch != "" {
-				targetBranch = matchingRepo.DefaultBranch
-			}
-
-			// Get issue details
-			issue, err := project.GetIssue(issueNumber)
-			if err != nil {
-				return fmt.Errorf("failed to get issue details: %w", err)
-			}
-
-			// Create PR title with issue number and full title
-			prTitle := fmt.Sprintf("#%d - %s", issueNumber, issue.Title)
-
-			logger.Info("Creating pull request with issue metadata", map[string]interface{}{
-				"issue_title":  issue.Title,
-				"issue_labels": issue.Labels,
-			})
-
-			// Create pull request
-			pr, err := project.CreatePullRequest(prTitle, currentBranch, targetBranch, issueNumber, isDraft, issue.Labels)
-			if err != nil {
-				return fmt.Errorf("failed to create pull request: %w", err)
-			}
-
-			logger.Info("Pull request created", map[string]interface{}{
-				"title":  pr.Title,
-				"number": pr.Number,
-				"url":    pr.HTMLURL,
-				"draft":  pr.IsDraft,
-			})
-
-			// Open the PR in browser
-			if err := utils.OpenURL(pr.HTMLURL); err != nil {
-				logger.Warn("Failed to open browser", map[string]interface{}{
-					"error": err.Error(),
-				})
-			}
-
-			fmt.Printf("Created pull request: %s\n", pr.HTMLURL)
+		// Check if repository is clean
+		isClean, err := gitRepo.IsClean()
+		if err != nil {
+			return fmt.Errorf("failed to check repository status")
 		}
+		if !isClean {
+			return fmt.Errorf("git repository has uncommitted changes - commit them before creating a merge request")
+		}
+
+		// Get target branch
+		targetBranch := "main"
+		if matchingRepo.DefaultBranch != "" {
+			targetBranch = matchingRepo.DefaultBranch
+		}
+
+		// Create SCM provider
+		var provider services.SCMProvider
+
+		if matchingRepo.GitlabRepo != "" {
+			provider, err = services.NewGitLabProvider(matchingRepo.GitlabRepo)
+			if err != nil {
+				return fmt.Errorf("failed to create GitLab provider - check your GITLAB_TOKEN environment variable")
+			}
+		} else {
+			provider, err = services.NewGitHubProvider(matchingRepo.GithubRepo)
+			if err != nil {
+				return fmt.Errorf("failed to create GitHub provider - check your GITHUB_TOKEN environment variable")
+			}
+		}
+
+		// Create merge request using common function
+		request, err := services.CreateMergeRequest(
+			provider,
+			gitRepo,
+			currentBranch,
+			remote,
+			targetBranch,
+			issueNumber,
+			isDraft,
+			true, // removeSourceBranch - always true for now
+		)
+
+		if err != nil {
+			// Check for the custom error messages we created for existing merge requests
+			if strings.Contains(err.Error(), "already exists for this branch") &&
+				(strings.Contains(err.Error(), "View existing merge request") ||
+					strings.Contains(err.Error(), "View existing pull request") ||
+					strings.Contains(err.Error(), "View your pull requests")) {
+				// This is our custom formatted error - just print it
+				fmt.Println(err.Error())
+				return nil
+			}
+
+			// Common push errors
+			if strings.Contains(err.Error(), "failed to push to") {
+				return fmt.Errorf("failed to push branch '%s' to remote '%s' - check network or permissions", currentBranch, remote)
+			}
+
+			// Common issue errors
+			if strings.Contains(err.Error(), "failed to get issue details") {
+				return fmt.Errorf("issue #%d not found - check if it exists", issueNumber)
+			}
+
+			// Otherwise, it's another error
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+
+		fmt.Printf("Created request: %s\n", request.URL)
 
 		logger.Debug("MR command completed successfully")
 		return nil
