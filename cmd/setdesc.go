@@ -92,11 +92,20 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 
 		// Setup OpenAI resources
 		oaiResources, err := services.SetupOpenAIResources(cmd.Context(), client, mrInfo.Diff)
+
+		// Always defer cleanup, but only if resources were created
+		defer func() {
+			logger.Info("Cleaning up OpenAI resources", map[string]interface{}{
+				"resources": oaiResources,
+			})
+			if oaiResources != nil {
+				services.CleanupOpenAIResources(cmd.Context(), oaiResources)
+			}
+		}()
+
 		if err != nil {
-			defer services.CleanupOpenAIResources(cmd.Context(), oaiResources)
 			return fmt.Errorf("failed to setup OpenAI resources: %v", err)
 		}
-		defer services.CleanupOpenAIResources(cmd.Context(), oaiResources)
 
 		// Generate and update descriptions based on flags
 		if !onlyIssue {
@@ -125,7 +134,7 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 			}
 		}
 
-		logger.Debug("Setdesc command completed successfully")
+		logger.Info("Setdesc command completed successfully")
 		return nil
 	},
 }
