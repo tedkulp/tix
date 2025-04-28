@@ -153,6 +153,18 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 		return
 	}
 
+	if resources.ThreadID != "" {
+		_, err := resources.Client.DeleteThread(ctx, resources.ThreadID)
+		if err != nil {
+			logger.Warn("Failed to delete OpenAI thread", map[string]interface{}{
+				"error": err.Error(),
+			})
+		}
+		logger.Debug("Deleted OpenAI thread", map[string]interface{}{
+			"id": resources.ThreadID,
+		})
+	}
+
 	if resources.AssistantID != "" {
 		_, err := resources.Client.DeleteAssistant(ctx, resources.AssistantID)
 		if err != nil {
@@ -160,6 +172,9 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 				"error": err.Error(),
 			})
 		}
+		logger.Debug("Deleted OpenAI assistant", map[string]interface{}{
+			"id": resources.AssistantID,
+		})
 	}
 
 	if resources.FileID != "" {
@@ -169,6 +184,9 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 				"error": err.Error(),
 			})
 		}
+		logger.Debug("Deleted OpenAI file", map[string]interface{}{
+			"id": resources.FileID,
+		})
 	}
 }
 
