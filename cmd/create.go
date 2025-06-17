@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
@@ -22,12 +23,12 @@ var (
 
 // RepoSettings represents repository settings and configuration
 type RepoSettings struct {
-	Repo          *config.Repository
-	Name          string
-	Directory     string
-	Labels        string
-	Milestone     string
-	IssueProvider services.IssueProvider
+	Repo      *config.Repository
+	Name      string
+	Directory string
+	Labels    string
+	Milestone string
+	Provider  services.SCMProvider
 }
 
 var createCmd = &cobra.Command{
@@ -51,7 +52,7 @@ If no title is provided, you will be prompted for one.`,
 			return err
 		}
 
-		// Open Git repository
+		// Open Git repository and validate it's clean BEFORE any user interaction
 		gitRepo, err := openAndValidateRepo(repoSettings.Directory)
 		if err != nil {
 			// Handle common git repository errors
@@ -224,27 +225,27 @@ func setupRepository() (*RepoSettings, error) {
 		return nil, fmt.Errorf("repository must have exactly one of github_repo or gitlab_repo... %+v", selectedRepo)
 	}
 
-	// Create appropriate issue provider
-	var issueProvider services.IssueProvider
+	// Create appropriate provider
+	var provider services.SCMProvider
 	if selectedRepo.GithubRepo != "" {
-		provider, err := services.NewGitHubIssueProvider(selectedRepo.GithubRepo)
+		githubProvider, err := services.NewGitHubProvider(selectedRepo.GithubRepo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create GitHub provider: %w", err)
 		}
-		issueProvider = provider
+		provider = githubProvider
 	} else {
-		provider, err := services.NewGitLabIssueProvider(selectedRepo.GitlabRepo)
+		gitlabProvider, err := services.NewGitLabProvider(selectedRepo.GitlabRepo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create GitLab provider: %w", err)
 		}
-		issueProvider = provider
+		provider = gitlabProvider
 	}
 
 	return &RepoSettings{
-		Repo:          selectedRepo,
-		Name:          selectedRepoName,
-		Directory:     selectedRepo.Directory,
-		IssueProvider: issueProvider,
+		Repo:      selectedRepo,
+		Name:      selectedRepoName,
+		Directory: selectedRepo.Directory,
+		Provider:  provider,
 	}, nil
 }
 
@@ -306,8 +307,11 @@ func promptForLabels(defaultLabels string) (string, error) {
 
 // promptForMilestone prompts the user for a milestone for the issue
 func promptForMilestone() (string, error) {
+	defaultMilestone := utils.GenerateMilestone(time.Now())
+
 	result, err := pterm.DefaultInteractiveTextInput.
 		WithDefaultText("Enter milestone").
+		WithDefaultValue(defaultMilestone).
 		Show()
 
 	if err != nil {
@@ -318,19 +322,21 @@ func promptForMilestone() (string, error) {
 }
 
 // createIssue creates a new issue using the provider
-func createIssue(settings *RepoSettings) (*services.IssueCreationResult, error) {
+func createIssue(settings *RepoSettings) (*services.IssueResult, error) {
 	logger.Info("Creating issue", map[string]interface{}{
 		"repo":        settings.Name,
 		"self_assign": selfAssign,
 		"milestone":   settings.Milestone,
 	})
 
-	issueResult, err := settings.IssueProvider.CreateIssue(
-		title,
-		settings.Labels,
-		selfAssign,
-		settings.Milestone,
-	)
+	params := services.IssueParams{
+		Title:          title,
+		Labels:         settings.Labels,
+		SelfAssign:     selfAssign,
+		MilestoneTitle: settings.Milestone,
+	}
+
+	issueResult, err := settings.Provider.CreateIssue(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue: %w", err)
 	}
@@ -338,8 +344,23 @@ func createIssue(settings *RepoSettings) (*services.IssueCreationResult, error) 
 	logger.Info("Issue created", map[string]interface{}{
 		"number": issueResult.Number,
 		"title":  issueResult.Title,
-		"url":    issueResult.URL,
 	})
+
+	// Get issue URL from the provider
+	var issueURL string
+	if _, err := settings.Provider.GetIssue(issueResult.Number); err == nil {
+		issueURL = fmt.Sprintf("%s/issues/%d", settings.Provider.GetURL(), issueResult.Number)
+		logger.Info("Issue URL", map[string]interface{}{
+			"url": issueURL,
+		})
+	}
+
+	// Show URL in terminal
+	if issueURL != "" {
+		fmt.Printf("Created issue: %s\n", issueURL)
+	} else {
+		fmt.Printf("Created issue #%d: %s\n", issueResult.Number, issueResult.Title)
+	}
 
 	return issueResult, nil
 }

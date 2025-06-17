@@ -132,15 +132,6 @@ It will extract the issue number from the branch name and create a merge request
 			"issue": issueNumber,
 		})
 
-		// Check if repository is clean
-		isClean, err := gitRepo.IsClean()
-		if err != nil {
-			return fmt.Errorf("failed to check repository status")
-		}
-		if !isClean {
-			return fmt.Errorf("git repository has uncommitted changes - commit them before creating a merge request")
-		}
-
 		// Get target branch
 		targetBranch := "main"
 		if matchingRepo.DefaultBranch != "" {
@@ -164,14 +155,17 @@ It will extract the issue number from the branch name and create a merge request
 
 		// Create merge request using common function
 		request, err := services.CreateMergeRequest(
-			provider,
-			gitRepo,
-			currentBranch,
-			remote,
-			targetBranch,
-			issueNumber,
-			isDraft,
-			true, // removeSourceBranch - always true for now
+			services.CreateMergeRequestParams{
+				Provider:           provider,
+				GitRepo:            gitRepo,
+				CurrentBranch:      currentBranch,
+				Remote:             remote,
+				TargetBranch:       targetBranch,
+				IssueNumber:        issueNumber,
+				IsDraft:            isDraft,
+				RemoveSourceBranch: true, // always true for now
+				Squash:             true, // always true for now
+			},
 		)
 
 		if err != nil {

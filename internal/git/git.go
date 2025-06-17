@@ -30,17 +30,24 @@ func Open(path string) (*Repository, error) {
 
 // IsClean checks if the working directory is clean
 func (r *Repository) IsClean() (bool, error) {
-	wt, err := r.Worktree()
+	// Use git status --porcelain to check if repository is clean
+	// If it returns no output, the repository is clean
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = r.path
+	output, err := cmd.Output()
 	if err != nil {
-		return false, fmt.Errorf("failed to get worktree: %w", err)
+		return false, fmt.Errorf("failed to check git status: %w", err)
 	}
 
-	status, err := wt.Status()
-	if err != nil {
-		return false, fmt.Errorf("failed to get status: %w", err)
-	}
+	// If output is empty, repository is clean
+	isClean := len(output) == 0
 
-	return status.IsClean(), nil
+	logger.Debug("Git status check", map[string]interface{}{
+		"is_clean": isClean,
+		"output":   string(output),
+	})
+
+	return isClean, nil
 }
 
 // CreateBranch creates a new branch from the current HEAD

@@ -330,21 +330,21 @@ func (p *GitHubProvider) GetOpenRequests(issueNumber int) ([]RequestResult, erro
 }
 
 // CreateMergeRequest implements the SCMProvider interface
-func (p *GitHubProvider) CreateMergeRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, labels []string, milestoneID int, removeSourceBranch bool) (*RequestResult, error) {
+func (p *GitHubProvider) CreateMergeRequest(params MergeRequestParams) (*RequestResult, error) {
 	// GitHub API doesn't support removeSourceBranch option directly,
 	// it would have to be done via repository settings or post-PR operation
 
-	pr, err := p.project.CreatePullRequest(title, sourceBranch, targetBranch, issueNumber, isDraft, labels)
+	pr, err := p.project.CreatePullRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, params.IsDraft, params.Labels)
 	if err != nil {
 		// Check for GitHub's "pull request already exists" error
 		// GitHub error message contains something like "A pull request already exists for octocat:patch-1."
 		if strings.Contains(err.Error(), "pull request already exists") {
 			// We don't have the PR number in the error message, but we can try to find it from open PRs
-			openPRs, prErr := p.project.GetOpenPullRequestsForIssue(issueNumber)
+			openPRs, prErr := p.project.GetOpenPullRequestsForIssue(params.IssueNumber)
 			if prErr == nil && len(openPRs) > 0 {
 				for _, existingPR := range openPRs {
 					// Try to find a PR with the matching branch
-					if strings.Contains(existingPR.Title, sourceBranch) {
+					if strings.Contains(existingPR.Title, params.SourceBranch) {
 						return nil, fmt.Errorf("a pull request already exists for this branch.\nView existing pull request: %s", existingPR.HTMLURL)
 					}
 				}
@@ -361,6 +361,7 @@ func (p *GitHubProvider) CreateMergeRequest(title, sourceBranch, targetBranch st
 		Title:   pr.Title,
 		URL:     pr.HTMLURL,
 		IsDraft: pr.IsDraft,
+		Squash:  params.Squash,
 	}, nil
 }
 
@@ -384,4 +385,18 @@ func (p *GitHubProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 // GetURL returns the GitHub URL for the repo
 func (p *GitHubProvider) GetURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s", p.project.owner, p.project.repo)
+}
+
+// CreateIssue implements the SCMProvider interface
+func (p *GitHubProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
+	issue, err := p.project.CreateIssue(params.Title, params.Labels, params.SelfAssign, params.MilestoneTitle)
+	if err != nil {
+		return nil, err
+	}
+
+	return &IssueResult{
+		Number: issue.Number,
+		Title:  issue.Title,
+		Labels: issue.Labels,
+	}, nil
 }

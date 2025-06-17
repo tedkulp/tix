@@ -8,10 +8,34 @@ import (
 	"github.com/tedkulp/tix/internal/utils"
 )
 
+// MergeRequestParams holds parameters for creating a merge request
+type MergeRequestParams struct {
+	Title              string
+	SourceBranch       string
+	TargetBranch       string
+	IssueNumber        int
+	IsDraft            bool
+	Labels             []string
+	MilestoneID        int
+	RemoveSourceBranch bool
+	Squash             bool
+}
+
+// IssueParams holds parameters for creating an issue
+type IssueParams struct {
+	Title          string
+	Labels         string
+	SelfAssign     bool
+	MilestoneTitle string
+}
+
 // SCMProvider represents a source code management system (GitHub, GitLab, etc.)
 type SCMProvider interface {
 	// CreateMergeRequest creates a merge/pull request and returns its details
-	CreateMergeRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, labels []string, milestoneID int, removeSourceBranch bool) (*RequestResult, error)
+	CreateMergeRequest(params MergeRequestParams) (*RequestResult, error)
+
+	// CreateIssue creates a new issue in the repository
+	CreateIssue(params IssueParams) (*IssueResult, error)
 
 	// GetOpenRequests returns the open merge/pull requests for an issue
 	GetOpenRequests(issueNumber int) ([]RequestResult, error)
@@ -29,6 +53,7 @@ type RequestResult struct {
 	Title   string
 	URL     string
 	IsDraft bool
+	Squash  bool
 }
 
 // IssueResult represents an issue from either system
@@ -39,10 +64,23 @@ type IssueResult struct {
 	MilestoneID int
 }
 
+// CreateMergeRequestParams is a convenience struct for CreateMergeRequest parameters
+type CreateMergeRequestParams struct {
+	Provider           SCMProvider
+	GitRepo            *git.Repository
+	CurrentBranch      string
+	Remote             string
+	TargetBranch       string
+	IssueNumber        int
+	IsDraft            bool
+	RemoveSourceBranch bool
+	Squash             bool
+}
+
 // CreateMergeRequest contains the common flow for creating a merge/pull request
-func CreateMergeRequest(provider SCMProvider, gitRepo *git.Repository, currentBranch, remote, targetBranch string, issueNumber int, isDraft bool, removeSourceBranch bool) (*RequestResult, error) {
+func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error) {
 	// Check if there's already an open request for this issue
-	openRequests, err := provider.GetOpenRequests(issueNumber)
+	openRequests, err := params.Provider.GetOpenRequests(params.IssueNumber)
 	if err != nil {
 		logger.Warn("Failed to check for existing requests", map[string]interface{}{
 			"error": err.Error(),
@@ -51,30 +89,30 @@ func CreateMergeRequest(provider SCMProvider, gitRepo *git.Repository, currentBr
 		// Check if any of the requests use the same branch
 		for _, req := range openRequests {
 			// If there's already a request for this branch, return an error
-			if req.Title != "" && utils.Contains(req.Title, currentBranch) {
+			if req.Title != "" && utils.Contains(req.Title, params.CurrentBranch) {
 				return nil, fmt.Errorf("a merge request already exists for this branch.\nView existing merge request: %s", req.URL)
 			}
 		}
 	}
 
 	// Push current branch to remote
-	logger.Info("Pushing branch to "+remote, map[string]interface{}{
-		"branch": currentBranch,
-		"remote": remote,
+	logger.Info("Pushing branch to "+params.Remote, map[string]interface{}{
+		"branch": params.CurrentBranch,
+		"remote": params.Remote,
 	})
 
-	if err := gitRepo.Push(remote, currentBranch); err != nil {
-		return nil, fmt.Errorf("failed to push to %s: %w", remote, err)
+	if err := params.GitRepo.Push(params.Remote, params.CurrentBranch); err != nil {
+		return nil, fmt.Errorf("failed to push to %s: %w", params.Remote, err)
 	}
 
 	// Get issue details
-	issue, err := provider.GetIssue(issueNumber)
+	issue, err := params.Provider.GetIssue(params.IssueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue details: %w", err)
 	}
 
 	// Create request title with issue number and full title
-	requestTitle := fmt.Sprintf("#%d - %s", issueNumber, issue.Title)
+	requestTitle := fmt.Sprintf("#%d - %s", params.IssueNumber, issue.Title)
 
 	logger.Info("Creating request with issue metadata", map[string]interface{}{
 		"issue_title":     issue.Title,
@@ -82,17 +120,21 @@ func CreateMergeRequest(provider SCMProvider, gitRepo *git.Repository, currentBr
 		"issue_milestone": issue.MilestoneID,
 	})
 
+	// Create request params
+	mrParams := MergeRequestParams{
+		Title:              requestTitle,
+		SourceBranch:       params.CurrentBranch,
+		TargetBranch:       params.TargetBranch,
+		IssueNumber:        params.IssueNumber,
+		IsDraft:            params.IsDraft,
+		Labels:             issue.Labels,
+		MilestoneID:        issue.MilestoneID,
+		RemoveSourceBranch: params.RemoveSourceBranch,
+		Squash:             params.Squash,
+	}
+
 	// Create request
-	request, err := provider.CreateMergeRequest(
-		requestTitle,
-		currentBranch,
-		targetBranch,
-		issueNumber,
-		isDraft,
-		issue.Labels,
-		issue.MilestoneID,
-		removeSourceBranch,
-	)
+	request, err := params.Provider.CreateMergeRequest(mrParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
