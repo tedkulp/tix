@@ -38,6 +38,7 @@ type CreateMergeRequestOptions struct {
 	IssueLabels        []string
 	MilestoneID        int
 	RemoveSourceBranch bool
+	Squash             bool
 }
 
 // GitLabProvider adapts GitlabProject to the SCMProvider interface
@@ -245,6 +246,7 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		TargetBranch:       &targetBranch,
 		Description:        &description,
 		RemoveSourceBranch: &options.RemoveSourceBranch,
+		Squash:             &options.Squash,
 	}
 
 	// Add labels if provided
@@ -396,15 +398,16 @@ func (p *GitLabProvider) GetOpenRequests(issueNumber int) ([]RequestResult, erro
 }
 
 // CreateMergeRequest implements the SCMProvider interface
-func (p *GitLabProvider) CreateMergeRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, labels []string, milestoneID int, removeSourceBranch bool) (*RequestResult, error) {
+func (p *GitLabProvider) CreateMergeRequest(params MergeRequestParams) (*RequestResult, error) {
 	options := CreateMergeRequestOptions{
-		IsDraft:            isDraft,
-		IssueLabels:        labels,
-		MilestoneID:        milestoneID,
-		RemoveSourceBranch: removeSourceBranch,
+		IsDraft:            params.IsDraft,
+		IssueLabels:        params.Labels,
+		MilestoneID:        params.MilestoneID,
+		RemoveSourceBranch: params.RemoveSourceBranch,
+		Squash:             params.Squash,
 	}
 
-	mr, err := p.project.CreateMergeRequest(title, sourceBranch, targetBranch, issueNumber, options)
+	mr, err := p.project.CreateMergeRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, options)
 	if err != nil {
 		// Check if this is a "merge request already exists" error
 		if strings.Contains(err.Error(), "Another open merge request already exists for this source branch") {
@@ -425,6 +428,7 @@ func (p *GitLabProvider) CreateMergeRequest(title, sourceBranch, targetBranch st
 		Title:   mr.Title,
 		URL:     mr.WebURL,
 		IsDraft: mr.IsDraft,
+		Squash:  params.Squash,
 	}, nil
 }
 
@@ -446,4 +450,23 @@ func (p *GitLabProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 // GetURL returns the GitLab URL for the repo
 func (p *GitLabProvider) GetURL() string {
 	return fmt.Sprintf("https://gitlab.com/%s", p.project.pid)
+}
+
+// CreateIssue implements the SCMProvider interface
+func (p *GitLabProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
+	var milestoneTitle string
+	if params.MilestoneTitle != "" {
+		milestoneTitle = params.MilestoneTitle
+	}
+
+	issue, err := p.project.CreateIssue(params.Title, params.Labels, params.SelfAssign, milestoneTitle)
+	if err != nil {
+		return nil, err
+	}
+
+	return &IssueResult{
+		Number: issue.IID,
+		Title:  issue.Title,
+		Labels: issue.Labels,
+	}, nil
 }

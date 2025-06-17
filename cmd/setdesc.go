@@ -195,7 +195,19 @@ func selectRepository() (*RepoInfo, error) {
 	var selectedRepo *config.Repository
 	var selectedRepoName string
 
-	if len(repoNames) > 1 {
+	if matchingRepo != nil {
+		// Use the matching repository directly
+		selectedRepo = matchingRepo
+		selectedRepoName = repoName
+		logger.Info("Using matching repository", map[string]interface{}{
+			"repo": selectedRepoName,
+		})
+	} else {
+		// No matching repo found, show selector
+		if len(repoNames) == 0 {
+			return nil, fmt.Errorf("no repositories configured")
+		}
+
 		// Use pterm's interactive select component
 		selectedName, err := pterm.DefaultInteractiveSelect.
 			WithOptions(repoNames).
@@ -204,7 +216,7 @@ func selectRepository() (*RepoInfo, error) {
 			Show()
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to select repository: %w", err)
+			return nil, fmt.Errorf("repository selection cancelled")
 		}
 
 		// Find the index of the selected repository
@@ -218,15 +230,6 @@ func selectRepository() (*RepoInfo, error) {
 
 		selectedRepo = &cfg.Repositories[selectedIdx]
 		selectedRepoName = selectedName
-	} else if len(repoNames) == 1 {
-		// If only one repo exists, use it
-		selectedRepo = &cfg.Repositories[0]
-		selectedRepoName = repoNames[0]
-		logger.Info("Only one repository available, using it", map[string]interface{}{
-			"repo": selectedRepoName,
-		})
-	} else {
-		return nil, fmt.Errorf("no repositories configured")
 	}
 
 	logger.Info("Repository selected", map[string]interface{}{
@@ -408,25 +411,51 @@ func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.
 func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *services.OpenAIResources, repoInfo *RepoInfo, mrInfo *services.MRInfo) error {
 	fmt.Println("Generating issue description...")
 
+	// Get original issue details
+	originalIssue, err := repoInfo.DescriptionProvider.GetIssueDetails(repoInfo.IssueNumber)
+	if err != nil {
+		return fmt.Errorf("failed to get original issue details: %w", err)
+	}
+
 	// Generate the description
-	title, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources)
+	newTitle, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources)
 	if err != nil {
 		return fmt.Errorf("failed to generate issue description: %w", err)
 	}
 
-	// Show the description and prompt for confirmation
-	fmt.Println()
-	if title != "" {
-		fmt.Println("========== ISSUE TITLE ==========")
-		fmt.Println(title)
+	// Handle title update separately if a new title was generated
+	var shouldUpdateTitle bool
+	if newTitle != "" {
+		fmt.Println()
+		fmt.Println("========== ORIGINAL ISSUE TITLE ==========")
+		fmt.Println(originalIssue.Title)
+		fmt.Println("========== NEW ISSUE TITLE ==========")
+		fmt.Println(newTitle)
+		fmt.Println("========================================")
+		fmt.Println()
+
+		// Get user confirmation for title update
+		titleResult, err := pterm.DefaultInteractiveConfirm.
+			WithDefaultValue(true).
+			WithDefaultText("Do you want to update the issue title?").
+			Show()
+
+		if err != nil {
+			return fmt.Errorf("cancelled updating issue title")
+		}
+
+		shouldUpdateTitle = titleResult
+		fmt.Println()
 	}
+
+	// Show the description and prompt for confirmation
 	fmt.Println("========== ISSUE DESCRIPTION ==========")
 	fmt.Println(issueDescription)
 	fmt.Println("========================================")
 	fmt.Println()
 
 	// Get user confirmation for issue description update
-	result, err := pterm.DefaultInteractiveConfirm.
+	descResult, err := pterm.DefaultInteractiveConfirm.
 		WithDefaultValue(true).
 		WithDefaultText("Do you want to update the issue description?").
 		Show()
@@ -435,20 +464,21 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 		return fmt.Errorf("cancelled updating issue description")
 	}
 
-	if !result {
+	if !descResult {
 		return nil
-	}
-
-	// Update issue title if provided
-	if title != "" {
-		if err := repoInfo.DescriptionProvider.UpdateIssueTitle(repoInfo.IssueNumber, title); err != nil {
-			return fmt.Errorf("failed to update issue title: %w", err)
-		}
 	}
 
 	// Update issue description
 	if err := repoInfo.DescriptionProvider.UpdateIssueDescription(repoInfo.IssueNumber, issueDescription); err != nil {
 		return fmt.Errorf("failed to update issue description: %w", err)
+	}
+
+	// Update issue title if both title and description updates were confirmed
+	if shouldUpdateTitle && newTitle != "" {
+		if err := repoInfo.DescriptionProvider.UpdateIssueTitle(repoInfo.IssueNumber, newTitle); err != nil {
+			return fmt.Errorf("failed to update issue title: %w", err)
+		}
+		fmt.Println("Issue title updated successfully!")
 	}
 
 	fmt.Println("Issue description updated successfully!")

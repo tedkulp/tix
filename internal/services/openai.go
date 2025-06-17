@@ -88,6 +88,8 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 
 The full diff is attached as a file.
 
+Do not include any inline citations, references, or source markers such as 【x:x†source】 in the output.
+
 Please format the description EXACTLY in the following structure:
 
 ### Summary
