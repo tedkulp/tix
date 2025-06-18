@@ -365,6 +365,76 @@ func (p *GitlabProject) UpdateIssueTitle(issueIID int, title string) error {
 	return nil
 }
 
+// AddLabelsToIssue adds labels to an existing issue
+func (p *GitlabProject) AddLabelsToIssue(issueIID int, labels []string) error {
+	// Get current issue to preserve existing labels
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	// Combine existing labels with new ones (avoid duplicates)
+	labelMap := make(map[string]bool)
+	for _, label := range issue.Labels {
+		labelMap[label] = true
+	}
+	for _, label := range labels {
+		labelMap[strings.TrimSpace(label)] = true
+	}
+
+	// Convert back to slice
+	var allLabels []string
+	for label := range labelMap {
+		if label != "" {
+			allLabels = append(allLabels, label)
+		}
+	}
+
+	labelsOpt := gitlab.LabelOptions(allLabels)
+	_, _, err = p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
+		Labels: &labelsOpt,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to add labels to issue: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveLabelsFromIssue removes labels from an existing issue
+func (p *GitlabProject) RemoveLabelsFromIssue(issueIID int, labels []string) error {
+	// Get current issue to get existing labels
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get issue: %w", err)
+	}
+
+	// Create a map of labels to remove for efficient lookup
+	labelsToRemove := make(map[string]bool)
+	for _, label := range labels {
+		labelsToRemove[strings.TrimSpace(label)] = true
+	}
+
+	// Filter out the labels to remove
+	var filteredLabels []string
+	for _, label := range issue.Labels {
+		if !labelsToRemove[label] {
+			filteredLabels = append(filteredLabels, label)
+		}
+	}
+
+	// Update the issue with filtered labels
+	labelsOpt := gitlab.LabelOptions(filteredLabels)
+	_, _, err = p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
+		Labels: &labelsOpt,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to remove labels from issue: %w", err)
+	}
+
+	return nil
+}
+
 // NewGitLabProvider creates a new GitLab provider
 func NewGitLabProvider(repo string) (*GitLabProvider, error) {
 	project, err := NewGitlabProject(repo)
@@ -469,4 +539,14 @@ func (p *GitLabProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
 		Title:  issue.Title,
 		Labels: issue.Labels,
 	}, nil
+}
+
+// AddLabelsToIssue implements the SCMProvider interface
+func (p *GitLabProvider) AddLabelsToIssue(issueNumber int, labels []string) error {
+	return p.project.AddLabelsToIssue(issueNumber, labels)
+}
+
+// RemoveLabelsFromIssue implements the SCMProvider interface
+func (p *GitLabProvider) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
+	return p.project.RemoveLabelsFromIssue(issueNumber, labels)
 }

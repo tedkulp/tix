@@ -292,6 +292,28 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 	}, nil
 }
 
+// AddLabelsToIssue adds labels to an existing issue
+func (p *GithubProject) AddLabelsToIssue(issueNumber int, labels []string) error {
+	ctx := context.Background()
+	_, _, err := p.client.Issues.AddLabelsToIssue(ctx, p.owner, p.repo, issueNumber, labels)
+	if err != nil {
+		return fmt.Errorf("failed to add labels to issue: %w", err)
+	}
+	return nil
+}
+
+// RemoveLabelsFromIssue removes labels from an existing issue
+func (p *GithubProject) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
+	ctx := context.Background()
+	for _, label := range labels {
+		_, err := p.client.Issues.RemoveLabelForIssue(ctx, p.owner, p.repo, issueNumber, label)
+		if err != nil {
+			return fmt.Errorf("failed to remove label %s from issue: %w", label, err)
+		}
+	}
+	return nil
+}
+
 // GitHubProvider adapts GithubProject to the SCMProvider interface
 type GitHubProvider struct {
 	project *GithubProject
@@ -399,4 +421,14 @@ func (p *GitHubProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
 		Title:  issue.Title,
 		Labels: issue.Labels,
 	}, nil
+}
+
+// AddLabelsToIssue implements the SCMProvider interface
+func (p *GitHubProvider) AddLabelsToIssue(issueNumber int, labels []string) error {
+	return p.project.AddLabelsToIssue(issueNumber, labels)
+}
+
+// RemoveLabelsFromIssue implements the SCMProvider interface
+func (p *GitHubProvider) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
+	return p.project.RemoveLabelsFromIssue(issueNumber, labels)
 }
