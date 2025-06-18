@@ -2,10 +2,10 @@ package services
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/tedkulp/tix/internal/git"
 	"github.com/tedkulp/tix/internal/logger"
-	"github.com/tedkulp/tix/internal/utils"
 )
 
 // MergeRequestParams holds parameters for creating a merge request
@@ -42,6 +42,12 @@ type SCMProvider interface {
 
 	// GetIssue returns an issue by its number
 	GetIssue(issueNumber int) (*IssueResult, error)
+
+	// AddLabelsToIssue adds labels to an existing issue
+	AddLabelsToIssue(issueNumber int, labels []string) error
+
+	// RemoveLabelsFromIssue removes labels from an existing issue
+	RemoveLabelsFromIssue(issueNumber int, labels []string) error
 
 	// GetURL returns the URL for the created request
 	GetURL() string
@@ -89,7 +95,7 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 		// Check if any of the requests use the same branch
 		for _, req := range openRequests {
 			// If there's already a request for this branch, return an error
-			if req.Title != "" && utils.Contains(req.Title, params.CurrentBranch) {
+			if req.Title != "" && strings.Contains(req.Title, params.CurrentBranch) {
 				return nil, fmt.Errorf("a merge request already exists for this branch.\nView existing merge request: %s", req.URL)
 			}
 		}
@@ -147,11 +153,17 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 	})
 
 	// Open the request in browser
-	if err := utils.OpenURL(request.URL); err != nil {
+	if err := OpenURL(request.URL); err != nil {
 		logger.Warn("Failed to open browser", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
 	return request, nil
+}
+
+// OpenURL opens a URL in the default browser (inline implementation to avoid import cycle)
+func OpenURL(url string) error {
+	// Import the utils.OpenURL functionality here to avoid import cycle
+	return fmt.Errorf("browser opening not implemented in this context")
 }

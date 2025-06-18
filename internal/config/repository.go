@@ -20,6 +20,7 @@ type Repository struct {
 	Name          string   `yaml:"name" mapstructure:"name"`
 	Directory     string   `yaml:"directory" mapstructure:"directory"`
 	DefaultLabels string   `yaml:"default_labels" mapstructure:"default_labels"`
+	ReadyLabel    string   `yaml:"ready_label" mapstructure:"ready_label"`
 	GithubRepo    string   `yaml:"github_repo" mapstructure:"github_repo"`
 	GitlabRepo    string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
 	DefaultBranch string   `yaml:"default_branch" mapstructure:"default_branch"`
@@ -28,6 +29,7 @@ type Repository struct {
 
 // Settings represents the root configuration
 type Settings struct {
+	ReadyLabel   string       `yaml:"ready_label" mapstructure:"ready_label"`
 	Repositories []Repository `yaml:"repositories" mapstructure:"repositories"`
 }
 
