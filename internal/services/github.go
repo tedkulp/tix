@@ -432,3 +432,9 @@ func (p *GitHubProvider) AddLabelsToIssue(issueNumber int, labels []string) erro
 func (p *GitHubProvider) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
 	return p.project.RemoveLabelsFromIssue(issueNumber, labels)
 }
+
+// UpdateIssueStatus implements the SCMProvider interface (no-op for GitHub)
+func (p *GitHubProvider) UpdateIssueStatus(issueNumber int, status string) error {
+	// GitHub doesn't support issue status updates, so this is a no-op
+	return nil
+}

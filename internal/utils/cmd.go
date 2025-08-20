@@ -30,7 +30,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	logger.Debug("Config loaded successfully", map[string]interface{}{
+	logger.Debug("Config loaded successfully", map[string]any{
 		"repos_count": len(cfg.GetRepoNames()),
 	})
 
@@ -40,7 +40,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	logger.Debug("Current directory", map[string]interface{}{
+	logger.Debug("Current directory", map[string]any{
 		"directory": wd,
 	})
 
@@ -69,7 +69,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 
 	// If we found a match, we'll offer it as the default option
 	if matchingRepo != nil {
-		logger.Info("Found matching repository", map[string]interface{}{
+		logger.Info("Found matching repository", map[string]any{
 			"repo":      repoName,
 			"directory": matchingRepo.Directory,
 		})
@@ -94,7 +94,6 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 			WithOptions(repoNames).
 			WithDefaultText("Select a repository").
 			Show()
-
 		if err != nil {
 			return nil, fmt.Errorf("repository selection cancelled")
 		}
@@ -107,7 +106,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		selectedRepoName = selected
 	}
 
-	logger.Info("Repository selected", map[string]interface{}{
+	logger.Info("Repository selected", map[string]any{
 		"repo": selectedRepoName,
 	})
 
@@ -123,7 +122,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		return nil, fmt.Errorf("failed to get current branch")
 	}
 
-	logger.Info("Current branch", map[string]interface{}{
+	logger.Info("Current branch", map[string]any{
 		"branch": currentBranch,
 	})
 
@@ -133,7 +132,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		return nil, fmt.Errorf("failed to extract issue number from branch '%s': %w", currentBranch, err)
 	}
 
-	logger.Info("Issue number extracted", map[string]interface{}{
+	logger.Info("Issue number extracted", map[string]any{
 		"issue": issueNumber,
 	})
 
@@ -191,6 +190,27 @@ func GetReadyLabel(cfg *config.Settings, repo *config.Repository, overrideLabel 
 	return "ready"
 }
 
+// GetReadyStatus returns the appropriate ready status for the repository
+func GetReadyStatus(cfg *config.Settings, repo *config.Repository, overrideStatus string) string {
+	// Use override status if provided
+	if overrideStatus != "" {
+		return overrideStatus
+	}
+
+	// Use repository-specific ready status if set
+	if repo.ReadyStatus != "" {
+		return repo.ReadyStatus
+	}
+
+	// Use global default ready status if set
+	if cfg.ReadyStatus != "" {
+		return cfg.ReadyStatus
+	}
+
+	// Return empty string if no status configured (will be ignored)
+	return ""
+}
+
 // LabelOperation represents the type of label operation
 type LabelOperation int
 
@@ -199,9 +219,14 @@ const (
 	RemoveLabel
 )
 
-// HandleLabelOperation handles adding or removing labels from an issue
+// HandleLabelOperation handles adding or removing labels from an issue and updating status
 func HandleLabelOperation(operation LabelOperation, overrideLabel string) error {
-	logger.Debug("Starting label operation", map[string]interface{}{
+	return HandleLabelAndStatusOperation(operation, overrideLabel, "")
+}
+
+// HandleLabelAndStatusOperation handles adding or removing labels from an issue and updating status
+func HandleLabelAndStatusOperation(operation LabelOperation, overrideLabel string, overrideStatus string) error {
+	logger.Debug("Starting label operation", map[string]any{
 		"operation": operation,
 	})
 
@@ -227,8 +252,9 @@ func HandleLabelOperation(operation LabelOperation, overrideLabel string) error 
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Get the ready label to use
+	// Get the ready label and status to use
 	labelToUse := GetReadyLabel(cfg, repoInfo.Repo, overrideLabel)
+	statusToUse := GetReadyStatus(cfg, repoInfo.Repo, overrideStatus)
 
 	var operationName string
 	if operation == AddLabel {
@@ -237,10 +263,11 @@ func HandleLabelOperation(operation LabelOperation, overrideLabel string) error 
 		operationName = "Removing"
 	}
 
-	logger.Info(fmt.Sprintf("%s ready label", operationName), map[string]interface{}{
-		"label": labelToUse,
-		"repo":  repoInfo.Name,
-		"issue": repoInfo.IssueNumber,
+	logger.Info(fmt.Sprintf("%s ready label", operationName), map[string]any{
+		"label":  labelToUse,
+		"status": statusToUse,
+		"repo":   repoInfo.Name,
+		"issue":  repoInfo.IssueNumber,
 	})
 
 	// Create SCM provider
@@ -272,10 +299,34 @@ func HandleLabelOperation(operation LabelOperation, overrideLabel string) error 
 			err)
 	}
 
+	// Update status if configured and we're adding labels (ready operation)
+	if operation == AddLabel && statusToUse != "" {
+		logger.Debug("Updating issue status", map[string]any{
+			"status": statusToUse,
+			"issue":  repoInfo.IssueNumber,
+		})
+
+		err = provider.UpdateIssueStatus(repoInfo.IssueNumber, statusToUse)
+		if err != nil {
+			// Log the error but don't fail the entire operation
+			logger.Warn("Failed to update issue status", map[string]any{
+				"error":  err.Error(),
+				"status": statusToUse,
+				"issue":  repoInfo.IssueNumber,
+			})
+			fmt.Printf("Warning: Failed to update issue status to '%s': %v\n", statusToUse, err)
+		}
+	}
+
 	// Success message
 	actionWord := map[LabelOperation]string{AddLabel: "Added", RemoveLabel: "Removed"}[operation]
 	preposition := map[LabelOperation]string{AddLabel: "to", RemoveLabel: "from"}[operation]
-	fmt.Printf("%s label '%s' %s issue #%d\n", actionWord, labelToUse, preposition, repoInfo.IssueNumber)
+
+	if operation == AddLabel && statusToUse != "" {
+		fmt.Printf("%s label '%s' and updated status to '%s' for issue #%d\n", actionWord, labelToUse, statusToUse, repoInfo.IssueNumber)
+	} else {
+		fmt.Printf("%s label '%s' %s issue #%d\n", actionWord, labelToUse, preposition, repoInfo.IssueNumber)
+	}
 
 	logger.Debug("Label operation completed successfully")
 	return nil

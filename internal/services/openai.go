@@ -42,7 +42,7 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 		return nil, fmt.Errorf("failed to write diff to temporary file: %w", err)
 	}
 
-	logger.Info("Diff saved to temporary file", map[string]interface{}{
+	logger.Info("Diff saved to temporary file", map[string]any{
 		"file": tempFile.Name(),
 		"size": len(diff),
 	})
@@ -67,7 +67,7 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 		return nil, fmt.Errorf("failed to create OpenAI assistant: %w", err)
 	}
 
-	logger.Info("Created OpenAI assistant", map[string]interface{}{
+	logger.Info("Created OpenAI assistant", map[string]any{
 		"id": assistant.ID,
 	})
 
@@ -80,7 +80,7 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 		return nil, fmt.Errorf("failed to upload file to OpenAI: %w", err)
 	}
 
-	logger.Info("Uploaded file to OpenAI", map[string]interface{}{
+	logger.Info("Uploaded file to OpenAI", map[string]any{
 		"file_id": fileResp.ID,
 	})
 
@@ -137,7 +137,7 @@ Information relevant for testers and QA:
 		return nil, fmt.Errorf("failed to create OpenAI thread: %w", err)
 	}
 
-	logger.Info("Created OpenAI thread", map[string]interface{}{
+	logger.Info("Created OpenAI thread", map[string]any{
 		"id": thread.ID,
 	})
 
@@ -158,11 +158,11 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 	if resources.ThreadID != "" {
 		_, err := resources.Client.DeleteThread(ctx, resources.ThreadID)
 		if err != nil {
-			logger.Warn("Failed to delete OpenAI thread", map[string]interface{}{
+			logger.Warn("Failed to delete OpenAI thread", map[string]any{
 				"error": err.Error(),
 			})
 		}
-		logger.Debug("Deleted OpenAI thread", map[string]interface{}{
+		logger.Debug("Deleted OpenAI thread", map[string]any{
 			"id": resources.ThreadID,
 		})
 	}
@@ -170,11 +170,11 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 	if resources.AssistantID != "" {
 		_, err := resources.Client.DeleteAssistant(ctx, resources.AssistantID)
 		if err != nil {
-			logger.Warn("Failed to delete OpenAI assistant", map[string]interface{}{
+			logger.Warn("Failed to delete OpenAI assistant", map[string]any{
 				"error": err.Error(),
 			})
 		}
-		logger.Debug("Deleted OpenAI assistant", map[string]interface{}{
+		logger.Debug("Deleted OpenAI assistant", map[string]any{
 			"id": resources.AssistantID,
 		})
 	}
@@ -182,11 +182,11 @@ func CleanupOpenAIResources(ctx context.Context, resources *OpenAIResources) {
 	if resources.FileID != "" {
 		err := resources.Client.DeleteFile(ctx, resources.FileID)
 		if err != nil {
-			logger.Warn("Failed to delete OpenAI file", map[string]interface{}{
+			logger.Warn("Failed to delete OpenAI file", map[string]any{
 				"error": err.Error(),
 			})
 		}
-		logger.Debug("Deleted OpenAI file", map[string]interface{}{
+		logger.Debug("Deleted OpenAI file", map[string]any{
 			"id": resources.FileID,
 		})
 	}
@@ -209,7 +209,7 @@ func PollRun(ctx context.Context, client *openai.Client, threadID, runID string)
 		}
 
 		// Wait before polling again
-		logger.Debug("Waiting for OpenAI run to complete", map[string]interface{}{
+		logger.Debug("Waiting for OpenAI run to complete", map[string]any{
 			"status": run.Status,
 		})
 		time.Sleep(1 * time.Second)
@@ -226,7 +226,7 @@ func GenerateMRDescription(ctx context.Context, resources *OpenAIResources) (str
 		return "", fmt.Errorf("failed to create OpenAI run: %w", err)
 	}
 
-	logger.Info("Created OpenAI run", map[string]interface{}{
+	logger.Info("Created OpenAI run", map[string]any{
 		"id": run.ID,
 	})
 
@@ -265,8 +265,8 @@ func GenerateMRDescription(ctx context.Context, resources *OpenAIResources) (str
 }
 
 // GenerateIssueDescription generates a description for an issue using OpenAI
-func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources) (string, string, error) {
-	content := `
+func GenerateIssueDescription(ctx context.Context, resources *OpenAIResources, currentTitle string) (string, string, error) {
+	content := fmt.Sprintf(`
 Given the following diff of code changes, write a GitLab issue description that outlines
 what needs to change and why — as if it were written before the code was implemented. The
 description should explain the motivation for the change, the intended behavior or outcome,
@@ -274,14 +274,25 @@ and any constraints or considerations, but should avoid describing the actual im
 or code specifics. Assume the reader is a teammate reviewing this before any work has been
 started.
 
+The current issue title is: "%s"
+
+You can either keep this title or suggest a better one. If you suggest a new title, make sure
+it's clear, concise, and accurately reflects the changes being made.
+
+Keep in mind, however, that this current title was the original intention of the change and
+the new title and description should reflect that. Meaning that, if the original intention
+was a business logic change and it required a huge refactoring that uses a new technology
+or paradigm, still keep the original intention as the focus of the generated text. Again, the
+issue is about the intended behavior or outcome, and not the inpelementation or code specifics.
+
 Please format the description EXACTLY in the following structure:
 
-## <Put the title goes here. It shouldn't be over 200 characters.>
+## <Put the title here. Keep the current title "%s" or suggest a better one. It shouldn't be over 200 characters.>
 
 ### Summary
 	
 A clear and concise summary of the changes (1-3 sentences). Focus on what needs to change
-any why.
+and why.
 	
 ### Rationale
 	
@@ -293,7 +304,7 @@ The rationale for the change. Again, it should be 1-3 sentences, clear and conci
 - [ ] They shouldn't mention specific file names, functions, or code
 - [ ] They should be in markdown checkboxes
 - [ ] They should assume the reader is a teammate reviewing this before any work has been started.
-	`
+	`, currentTitle, currentTitle)
 
 	// Create a message asking for an issue description
 	_, err := resources.Client.CreateMessage(ctx, resources.ThreadID, openai.MessageRequest{

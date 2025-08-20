@@ -22,7 +22,7 @@ var (
 )
 
 // InitLogger initializes the global logger with the given verbosity level
-func InitLogger(verbose bool) {
+func InitLogger(verboseCount int) {
 	// Set up console writer with color
 	output := zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.DateTime, NoColor: false}
 
@@ -39,11 +39,17 @@ func InitLogger(verbose bool) {
 	// Set global logger
 	Logger = zerolog.New(output).With().Timestamp().Caller().Logger()
 
-	// Set log level based on verbose flag
-	if verbose {
-		Logger = Logger.Level(zerolog.DebugLevel)
-	} else {
+	// Set log level based on verbose count
+	// 0: WARN (default)
+	// 1: INFO (-v)
+	// 2+: DEBUG (-vv or more)
+	switch verboseCount {
+	case 0:
+		Logger = Logger.Level(zerolog.WarnLevel)
+	case 1:
 		Logger = Logger.Level(zerolog.InfoLevel)
+	default: // 2 or more
+		Logger = Logger.Level(zerolog.DebugLevel)
 	}
 
 	// Replace the global logger
