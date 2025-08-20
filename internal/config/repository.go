@@ -17,22 +17,26 @@ type Worktree struct {
 
 // Repository represents a single repository configuration
 type Repository struct {
-	Name          string   `yaml:"name" mapstructure:"name"`
-	Directory     string   `yaml:"directory" mapstructure:"directory"`
-	DefaultLabels string   `yaml:"default_labels" mapstructure:"default_labels"`
-	ReadyLabel    string   `yaml:"ready_label" mapstructure:"ready_label"`
-	ReadyStatus   string   `yaml:"ready_status" mapstructure:"ready_status"`
-	GithubRepo    string   `yaml:"github_repo" mapstructure:"github_repo"`
-	GitlabRepo    string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
-	DefaultBranch string   `yaml:"default_branch" mapstructure:"default_branch"`
-	Worktree      Worktree `yaml:"worktree,omitempty" mapstructure:"worktree"`
+	Name           string   `yaml:"name" mapstructure:"name"`
+	Directory      string   `yaml:"directory" mapstructure:"directory"`
+	DefaultLabels  string   `yaml:"default_labels" mapstructure:"default_labels"`
+	ReadyLabel     string   `yaml:"ready_label" mapstructure:"ready_label"`
+	ReadyStatus    string   `yaml:"ready_status" mapstructure:"ready_status"`
+	UnreadyLabel   string   `yaml:"unready_label" mapstructure:"unready_label"`
+	UnreadyStatus  string   `yaml:"unready_status" mapstructure:"unready_status"`
+	GithubRepo     string   `yaml:"github_repo" mapstructure:"github_repo"`
+	GitlabRepo     string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
+	DefaultBranch  string   `yaml:"default_branch" mapstructure:"default_branch"`
+	Worktree       Worktree `yaml:"worktree,omitempty" mapstructure:"worktree"`
 }
 
 // Settings represents the root configuration
 type Settings struct {
-	ReadyLabel   string       `yaml:"ready_label" mapstructure:"ready_label"`
-	ReadyStatus  string       `yaml:"ready_status" mapstructure:"ready_status"`
-	Repositories []Repository `yaml:"repositories" mapstructure:"repositories"`
+	ReadyLabel    string       `yaml:"ready_label" mapstructure:"ready_label"`
+	ReadyStatus   string       `yaml:"ready_status" mapstructure:"ready_status"`
+	UnreadyLabel  string       `yaml:"unready_label" mapstructure:"unready_label"`
+	UnreadyStatus string       `yaml:"unready_status" mapstructure:"unready_status"`
+	Repositories  []Repository `yaml:"repositories" mapstructure:"repositories"`
 }
 
 // Load reads the configuration from the specified file

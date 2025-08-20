@@ -30,7 +30,9 @@ Create a configuration file at `~/.tix.yml` with the following structure:
 ```yaml
 # Global defaults
 ready_label: "ready for review"
-ready_status: "in_progress"  # GitLab only
+ready_status: "in_progress"    # GitLab only
+unready_label: "needs-work"    # Optional: label to add when marking as unready
+unready_status: "opened"       # GitLab only
 
 repositories:
   - name: my-project
@@ -38,13 +40,16 @@ repositories:
     directory: ~/src/my-project
     default_labels: bug,enhancement
     default_branch: main
-    ready_label: "needs-review"  # Override global default
+    ready_label: "needs-review"      # Override global default
+    unready_label: "work-needed"     # Override global default
   - name: another-project
     gitlab_repo: group/project
     directory: ~/src/another-project
     default_labels: feature
     ready_label: "review-ready"
-    ready_status: "ready"  # GitLab issue status
+    ready_status: "ready"            # GitLab issue status
+    unready_label: "blocked"
+    unready_status: "opened"         # GitLab issue status
     worktree:
       enabled: true
       default_branch: main
@@ -55,6 +60,8 @@ repositories:
 #### Global Options
 - `ready_label`: Default label to add when marking issues as ready (default: "ready")
 - `ready_status`: Default status to set for GitLab issues when marking as ready (GitLab only)
+- `unready_label`: Default label to add when marking issues as unready (optional)
+- `unready_status`: Default status to set for GitLab issues when marking as unready (GitLab only)
 
 #### Repository Options
 - `name`: Unique name for the repository
@@ -65,11 +72,13 @@ repositories:
 - `default_branch`: Default branch name (default: "main")
 - `ready_label`: Repository-specific ready label (overrides global)
 - `ready_status`: Repository-specific ready status for GitLab (overrides global)
+- `unready_label`: Repository-specific unready label (overrides global)
+- `unready_status`: Repository-specific unready status for GitLab (overrides global)
 - `worktree.enabled`: Enable Git worktree support
 - `worktree.default_branch`: Default branch for worktrees
 
 #### GitLab Status Updates
-When using GitLab repositories, the `ready_status` configuration allows you to automatically update issue status when marking issues as ready. This uses GitLab's GraphQL API to set the issue state. Standard status values include:
+When using GitLab repositories, the `ready_status` and `unready_status` configurations allow you to automatically update issue status when marking issues as ready or unready. This uses GitLab's GraphQL API to set the issue state. Standard status values include:
 - `opened` (default)
 - `closed`
 
@@ -120,13 +129,25 @@ tix ready
 # Mark an issue as not ready (removes the ready label)
 tix unready
 
-# Override the default ready label
+# Mark as unready and add an unready label
+tix unready --unready-label "needs-work"
+
+# Mark as unready and set status
+tix unready --status "opened"
+
+# Override the ready label to remove
+tix unready --label "review-ready"
+
+# Full unready operation with all options
+tix unready --label "ready" --unready-label "blocked" --status "opened"
+
+# Override the default ready label for ready command
 tix ready --label "needs-review"
 
 # Override the default ready status (GitLab only)
 tix ready --status "ready"
 
-# Override both label and status
+# Override both label and status for ready command
 tix ready --label "review-ready" --status "in_progress"
 ```
 
