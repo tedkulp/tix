@@ -95,7 +95,7 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 
 		// Always defer cleanup, but only if resources were created
 		defer func() {
-			logger.Info("Cleaning up OpenAI resources", map[string]interface{}{
+			logger.Info("Cleaning up OpenAI resources", map[string]any{
 				"resources": oaiResources,
 			})
 			if oaiResources != nil {
@@ -146,7 +146,7 @@ func selectRepository() (*RepoInfo, error) {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
-	logger.Debug("Config loaded successfully", map[string]interface{}{
+	logger.Debug("Config loaded successfully", map[string]any{
 		"repos_count": len(cfg.GetRepoNames()),
 	})
 
@@ -156,7 +156,7 @@ func selectRepository() (*RepoInfo, error) {
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	logger.Debug("Current directory", map[string]interface{}{
+	logger.Debug("Current directory", map[string]any{
 		"directory": wd,
 	})
 
@@ -185,7 +185,7 @@ func selectRepository() (*RepoInfo, error) {
 
 	// If we found a match, we'll offer it as the default option
 	if matchingRepo != nil {
-		logger.Info("Found matching repository", map[string]interface{}{
+		logger.Info("Found matching repository", map[string]any{
 			"repo":      repoName,
 			"directory": matchingRepo.Directory,
 		})
@@ -199,7 +199,7 @@ func selectRepository() (*RepoInfo, error) {
 		// Use the matching repository directly
 		selectedRepo = matchingRepo
 		selectedRepoName = repoName
-		logger.Info("Using matching repository", map[string]interface{}{
+		logger.Info("Using matching repository", map[string]any{
 			"repo": selectedRepoName,
 		})
 	} else {
@@ -214,7 +214,6 @@ func selectRepository() (*RepoInfo, error) {
 			WithDefaultText("Select a repository").
 			WithDefaultOption(repoName).
 			Show()
-
 		if err != nil {
 			return nil, fmt.Errorf("repository selection cancelled")
 		}
@@ -232,14 +231,14 @@ func selectRepository() (*RepoInfo, error) {
 		selectedRepoName = selectedName
 	}
 
-	logger.Info("Repository selected", map[string]interface{}{
+	logger.Info("Repository selected", map[string]any{
 		"repo": selectedRepoName,
 	})
 
 	// Validate repository configuration
 	if (selectedRepo.GithubRepo == "" && selectedRepo.GitlabRepo == "") ||
 		(selectedRepo.GithubRepo != "" && selectedRepo.GitlabRepo != "") {
-		logger.Error("Invalid repository configuration", nil, map[string]interface{}{
+		logger.Error("Invalid repository configuration", nil, map[string]any{
 			"repo":        selectedRepoName,
 			"github_repo": selectedRepo.GithubRepo,
 			"gitlab_repo": selectedRepo.GitlabRepo,
@@ -262,7 +261,7 @@ func selectRepository() (*RepoInfo, error) {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	logger.Info("Current branch", map[string]interface{}{
+	logger.Info("Current branch", map[string]any{
 		"branch": currentBranch,
 	})
 
@@ -272,7 +271,7 @@ func selectRepository() (*RepoInfo, error) {
 		return nil, fmt.Errorf("failed to extract issue number from branch name: %w", err)
 	}
 
-	logger.Info("Issue number extracted", map[string]interface{}{
+	logger.Info("Issue number extracted", map[string]any{
 		"issue": issueNumber,
 	})
 
@@ -321,7 +320,6 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 			WithOptions(mrTitles).
 			WithDefaultText("Select a merge request").
 			Show()
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to select merge request: %w", err)
 		}
@@ -340,7 +338,7 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 		selectedMR = mrInfo.OpenRequests[0]
 	}
 
-	logger.Info("Merge request selected", map[string]interface{}{
+	logger.Info("Merge request selected", map[string]any{
 		"id":    selectedMR.IID,
 		"title": selectedMR.Title,
 	})
@@ -387,7 +385,6 @@ func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.
 		WithDefaultValue(true).
 		WithDefaultText("Do you want to update the merge request description?").
 		Show()
-
 	if err != nil {
 		return fmt.Errorf("cancelled updating merge request description")
 	}
@@ -418,7 +415,7 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 	}
 
 	// Generate the description
-	newTitle, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources)
+	newTitle, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources, originalIssue.Title)
 	if err != nil {
 		return fmt.Errorf("failed to generate issue description: %w", err)
 	}
@@ -439,7 +436,6 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 			WithDefaultValue(true).
 			WithDefaultText("Do you want to update the issue title?").
 			Show()
-
 		if err != nil {
 			return fmt.Errorf("cancelled updating issue title")
 		}
@@ -459,7 +455,6 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 		WithDefaultValue(true).
 		WithDefaultText("Do you want to update the issue description?").
 		Show()
-
 	if err != nil {
 		return fmt.Errorf("cancelled updating issue description")
 	}

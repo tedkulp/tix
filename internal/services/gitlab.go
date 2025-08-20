@@ -1,7 +1,10 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -13,6 +16,19 @@ import (
 type GitlabProject struct {
 	client *gitlab.Client
 	pid    string
+}
+
+// GraphQL structures for issue status update
+type GraphQLRequest struct {
+	Query     string         `json:"query"`
+	Variables map[string]any `json:"variables"`
+}
+
+type GraphQLResponse struct {
+	Data   any `json:"data"`
+	Errors []struct {
+		Message string `json:"message"`
+	} `json:"errors"`
 }
 
 // GitlabIssue represents a GitLab issue
@@ -78,7 +94,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 		return 0, fmt.Errorf("failed to list project milestones: %w", err)
 	}
 
-	logger.Debug("Project milestones found", map[string]interface{}{
+	logger.Debug("Project milestones found", map[string]any{
 		"milestones": milestones,
 	})
 
@@ -94,6 +110,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 	}
 
 	// Check if project belongs to a group
+	// d
 	if project.Namespace != nil && project.Namespace.Kind == "group" {
 		// Get the group ID
 		groupID := project.Namespace.ID
@@ -110,7 +127,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 			return 0, fmt.Errorf("failed to list group milestones: %w", err)
 		}
 
-		logger.Debug("Group milestones found", map[string]interface{}{
+		logger.Debug("Group milestones found", map[string]any{
 			"group_id":   groupID,
 			"milestones": groupMilestones,
 		})
@@ -435,6 +452,98 @@ func (p *GitlabProject) RemoveLabelsFromIssue(issueIID int, labels []string) err
 	return nil
 }
 
+// UpdateIssueStatus updates the status of an issue using GraphQL
+func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
+	if status == "" {
+		// No status configured, skip update
+		return nil
+	}
+
+	token := os.Getenv("GITLAB_TOKEN")
+	if token == "" {
+		return fmt.Errorf("GITLAB_TOKEN environment variable is required")
+	}
+
+	// First, get the issue's global ID using REST API
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID)
+	if err != nil {
+		return fmt.Errorf("failed to get issue for status update: %w", err)
+	}
+
+	// Convert to global ID format
+	globalID := fmt.Sprintf("gid://gitlab/Issue/%d", issue.ID)
+
+	// GraphQL mutation to update issue status
+	mutation := `
+		mutation updateIssue($input: UpdateIssueInput!) {
+			updateIssue(input: $input) {
+				issue {
+					id
+					state
+				}
+				errors
+			}
+		}
+	`
+
+	variables := map[string]any{
+		"input": map[string]any{
+			"id":    globalID,
+			"state": strings.ToUpper(status), // GitLab expects uppercase status values
+		},
+	}
+
+	request := GraphQLRequest{
+		Query:     mutation,
+		Variables: variables,
+	}
+
+	// Make GraphQL request
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
+	}
+
+	// Create HTTP request to GitLab GraphQL endpoint
+	req, err := http.NewRequest("POST", "https://gitlab.com/api/graphql", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create GraphQL request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute GraphQL request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Parse response
+	var response GraphQLResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
+	}
+
+	// Check for GraphQL errors
+	if len(response.Errors) > 0 {
+		var errorMessages []string
+		for _, err := range response.Errors {
+			errorMessages = append(errorMessages, err.Message)
+		}
+		return fmt.Errorf("GraphQL errors: %s", strings.Join(errorMessages, "; "))
+	}
+
+	logger.Debug("Issue status updated successfully", map[string]any{
+		"issue_id": issueIID,
+		"status":   status,
+	})
+
+	return nil
+}
+
 // NewGitLabProvider creates a new GitLab provider
 func NewGitLabProvider(repo string) (*GitLabProvider, error) {
 	project, err := NewGitlabProject(repo)
@@ -549,4 +658,9 @@ func (p *GitLabProvider) AddLabelsToIssue(issueNumber int, labels []string) erro
 // RemoveLabelsFromIssue implements the SCMProvider interface
 func (p *GitLabProvider) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
 	return p.project.RemoveLabelsFromIssue(issueNumber, labels)
+}
+
+// UpdateIssueStatus implements the SCMProvider interface
+func (p *GitLabProvider) UpdateIssueStatus(issueNumber int, status string) error {
+	return p.project.UpdateIssueStatus(issueNumber, status)
 }

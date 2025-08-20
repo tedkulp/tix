@@ -49,6 +49,9 @@ type SCMProvider interface {
 	// RemoveLabelsFromIssue removes labels from an existing issue
 	RemoveLabelsFromIssue(issueNumber int, labels []string) error
 
+	// UpdateIssueStatus updates the status of an issue (GitLab only, no-op for GitHub)
+	UpdateIssueStatus(issueNumber int, status string) error
+
 	// GetURL returns the URL for the created request
 	GetURL() string
 }

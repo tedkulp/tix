@@ -10,7 +10,7 @@ import (
 
 // Flag variables
 var (
-	verbose bool
+	verboseCount int
 )
 
 var rootCmd = &cobra.Command{
@@ -28,14 +28,17 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 			return nil
 		}
 
-		// Initialize logger with verbose flag
-		logger.InitLogger(verbose)
+		// Initialize logger with verbose count
+		logger.InitLogger(verboseCount)
 
-		if verbose {
-			logger.Info("Verbose logging enabled")
+		switch verboseCount {
+		case 0:
+			// WARN level - no startup message needed
+		case 1:
+			logger.Info("Info logging enabled (-v)")
+		default:
+			logger.Info("Debug logging enabled (-vv)")
 			logger.Debug("Debug logging is active")
-		} else {
-			logger.Info("Running in normal mode")
 		}
 
 		return nil
@@ -44,10 +47,15 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Initialize logger for root command when no subcommand is specified
 		if !cmd.HasSubCommands() {
-			logger.InitLogger(verbose)
+			logger.InitLogger(verboseCount)
 
-			if verbose {
-				logger.Info("Verbose logging enabled")
+			switch verboseCount {
+			case 0:
+				// WARN level - no startup message needed
+			case 1:
+				logger.Info("Info logging enabled (-v)")
+			default:
+				logger.Info("Debug logging enabled (-vv)")
 				logger.Debug("Debug logging is active")
 			}
 		}
@@ -78,5 +86,5 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 	rootCmd.PersistentFlags().StringP("config", "c", "~/.tix.yml", "config file (default is $HOME/.tix.yml)")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose logging")
+	rootCmd.PersistentFlags().CountVarP(&verboseCount, "verbose", "v", "increase verbosity: -v for INFO, -vv for DEBUG (default: WARN)")
 }
