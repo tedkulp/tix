@@ -471,15 +471,29 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 	}
 
 	// Convert to global ID format
-	globalID := fmt.Sprintf("gid://gitlab/Issue/%d", issue.ID)
+	globalID := fmt.Sprintf("gid://gitlab/WorkItem/%d", issue.ID)
 
-	// GraphQL mutation to update issue status
+	// Get the status ID by querying available statuses
+	statusID, err := p.getStatusID(status)
+	if err != nil {
+		return fmt.Errorf("failed to get status ID for '%s': %w", status, err)
+	}
+
+	// GraphQL mutation to update work item status
 	mutation := `
-		mutation updateIssue($input: UpdateIssueInput!) {
-			updateIssue(input: $input) {
-				issue {
+		mutation workItemUpdate($input: WorkItemUpdateInput!) {
+			workItemUpdate(input: $input) {
+				workItem {
 					id
-					state
+					widgets {
+						type
+						... on WorkItemWidgetStatus {
+							status {
+								id
+								name
+							}
+						}
+					}
 				}
 				errors
 			}
@@ -488,8 +502,10 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 
 	variables := map[string]any{
 		"input": map[string]any{
-			"id":    globalID,
-			"state": strings.ToUpper(status), // GitLab expects uppercase status values
+			"id": globalID,
+			"statusWidget": map[string]any{
+				"status": statusID,
+			},
 		},
 	}
 
@@ -499,15 +515,94 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 	}
 
 	// Make GraphQL request
+	err = p.executeGraphQLRequest(request)
+	if err != nil {
+		return fmt.Errorf("failed to update work item status: %w", err)
+	}
+
+	logger.Debug("Issue status updated successfully", map[string]any{
+		"issue_id":  issueIID,
+		"status":    status,
+		"status_id": statusID,
+	})
+
+	return nil
+}
+
+// getStatusID queries GitLab to get the status ID for a given status name
+func (p *GitlabProject) getStatusID(statusName string) (string, error) {
+	// Query to get available statuses for the project
+	query := `
+		query namespaceWorkItemTypes($fullPath: ID!, $name: IssueType) {
+			workspace: namespace(fullPath: $fullPath) {
+				id
+				workItemTypes(name: $name) {
+					nodes {
+						id
+						name
+						widgetDefinitions {
+							type
+							... on WorkItemWidgetDefinitionStatus {
+								allowedStatuses {
+									id
+									name
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	`
+
+	variables := map[string]any{
+		"fullPath": p.pid,
+		"name":     "ISSUE",
+	}
+
+	request := GraphQLRequest{
+		Query:     query,
+		Variables: variables,
+	}
+
+	// Execute the query
+	response, err := p.executeGraphQLRequestWithResponse(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to query work item types: %w", err)
+	}
+
+	// Parse the response to find the status ID
+	statusID, err := p.parseStatusIDFromResponse(response, statusName)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse status ID: %w", err)
+	}
+
+	return statusID, nil
+}
+
+// executeGraphQLRequest executes a GraphQL request and checks for errors
+func (p *GitlabProject) executeGraphQLRequest(request GraphQLRequest) error {
+	_, err := p.executeGraphQLRequestWithResponse(request)
+	return err
+}
+
+// executeGraphQLRequestWithResponse executes a GraphQL request and returns the response
+func (p *GitlabProject) executeGraphQLRequestWithResponse(request GraphQLRequest) (map[string]any, error) {
+	token := os.Getenv("GITLAB_TOKEN")
+	if token == "" {
+		return nil, fmt.Errorf("GITLAB_TOKEN environment variable is required")
+	}
+
+	// Make GraphQL request
 	jsonData, err := json.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
+		return nil, fmt.Errorf("failed to marshal GraphQL request: %w", err)
 	}
 
 	// Create HTTP request to GitLab GraphQL endpoint
 	req, err := http.NewRequest("POST", "https://gitlab.com/api/graphql", bytes.NewBuffer(jsonData))
 	if err != nil {
-		return fmt.Errorf("failed to create GraphQL request: %w", err)
+		return nil, fmt.Errorf("failed to create GraphQL request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -517,14 +612,20 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to execute GraphQL request: %w", err)
+		return nil, fmt.Errorf("failed to execute GraphQL request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Parse response
-	var response GraphQLResponse
+	var response struct {
+		Data   map[string]any `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
-		return fmt.Errorf("failed to decode GraphQL response: %w", err)
+		return nil, fmt.Errorf("failed to decode GraphQL response: %w", err)
 	}
 
 	// Check for GraphQL errors
@@ -533,15 +634,90 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 		for _, err := range response.Errors {
 			errorMessages = append(errorMessages, err.Message)
 		}
-		return fmt.Errorf("GraphQL errors: %s", strings.Join(errorMessages, "; "))
+		return nil, fmt.Errorf("GraphQL errors: %s", strings.Join(errorMessages, "; "))
 	}
 
-	logger.Debug("Issue status updated successfully", map[string]any{
-		"issue_id": issueIID,
-		"status":   status,
-	})
+	return response.Data, nil
+}
 
-	return nil
+// parseStatusIDFromResponse parses the GraphQL response to extract the status ID
+func (p *GitlabProject) parseStatusIDFromResponse(data map[string]any, statusName string) (string, error) {
+	// Navigate through the response structure
+	workspace, ok := data["workspace"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("workspace not found in response")
+	}
+
+	workItemTypes, ok := workspace["workItemTypes"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("workItemTypes not found in response")
+	}
+
+	nodes, ok := workItemTypes["nodes"].([]any)
+	if !ok || len(nodes) == 0 {
+		return "", fmt.Errorf("no work item types found")
+	}
+
+	// Find the Issue work item type
+	for _, node := range nodes {
+		nodeMap, ok := node.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		name, ok := nodeMap["name"].(string)
+		if !ok || name != "Issue" {
+			continue
+		}
+
+		// Found the Issue type, now look for status widget definition
+		widgetDefinitions, ok := nodeMap["widgetDefinitions"].([]any)
+		if !ok {
+			continue
+		}
+
+		for _, widget := range widgetDefinitions {
+			widgetMap, ok := widget.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			widgetType, ok := widgetMap["type"].(string)
+			if !ok || widgetType != "STATUS" {
+				continue
+			}
+
+			// Found the status widget, now look for allowed statuses
+			allowedStatuses, ok := widgetMap["allowedStatuses"].([]any)
+			if !ok {
+				continue
+			}
+
+			// Search for the status by name (case-insensitive)
+			for _, status := range allowedStatuses {
+				statusMap, ok := status.(map[string]any)
+				if !ok {
+					continue
+				}
+
+				name, ok := statusMap["name"].(string)
+				if !ok {
+					continue
+				}
+
+				// Case-insensitive comparison
+				if strings.EqualFold(name, statusName) {
+					id, ok := statusMap["id"].(string)
+					if !ok {
+						return "", fmt.Errorf("status ID not found for status '%s'", statusName)
+					}
+					return id, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("status '%s' not found in available statuses", statusName)
 }
 
 // NewGitLabProvider creates a new GitLab provider
