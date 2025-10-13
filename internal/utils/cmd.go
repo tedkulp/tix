@@ -186,8 +186,8 @@ func GetReadyLabel(cfg *config.Settings, repo *config.Repository, overrideLabel 
 		return cfg.ReadyLabel
 	}
 
-	// Fallback to "ready"
-	return "ready"
+	// Return empty string if no ready label configured
+	return ""
 }
 
 // GetReadyStatus returns the appropriate ready status for the repository
@@ -320,23 +320,31 @@ func handleReadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, provid
 	labelToUse := GetReadyLabel(cfg, repoInfo.Repo, overrideLabel)
 	statusToUse := GetReadyStatus(cfg, repoInfo.Repo, overrideStatus)
 
-	logger.Info("Adding ready label", map[string]any{
+	// If no label or status configured, this becomes a no-op
+	if labelToUse == "" && statusToUse == "" {
+		fmt.Printf("No ready label or status configured for issue #%d - no changes made\n", repoInfo.IssueNumber)
+		return nil
+	}
+
+	logger.Info("Ready operation", map[string]any{
 		"label":  labelToUse,
 		"status": statusToUse,
 		"repo":   repoInfo.Name,
 		"issue":  repoInfo.IssueNumber,
 	})
 
-	// Add ready label
-	err := provider.AddLabelsToIssue(repoInfo.IssueNumber, []string{labelToUse})
-	if err != nil {
-		if strings.Contains(err.Error(), "failed to get issue") {
-			return fmt.Errorf("issue #%d not found - check if it exists", repoInfo.IssueNumber)
+	// Add ready label if configured
+	if labelToUse != "" {
+		err := provider.AddLabelsToIssue(repoInfo.IssueNumber, []string{labelToUse})
+		if err != nil {
+			if strings.Contains(err.Error(), "failed to get issue") {
+				return fmt.Errorf("issue #%d not found - check if it exists", repoInfo.IssueNumber)
+			}
+			if strings.Contains(err.Error(), "failed to add labels") {
+				return fmt.Errorf("failed to add label '%s' to issue #%d - check your API token permissions", labelToUse, repoInfo.IssueNumber)
+			}
+			return fmt.Errorf("failed to add label to issue: %w", err)
 		}
-		if strings.Contains(err.Error(), "failed to add labels") {
-			return fmt.Errorf("failed to add label '%s' to issue #%d - check your API token permissions", labelToUse, repoInfo.IssueNumber)
-		}
-		return fmt.Errorf("failed to add label to issue: %w", err)
 	}
 
 	// Update status if configured
@@ -346,7 +354,7 @@ func handleReadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, provid
 			"issue":  repoInfo.IssueNumber,
 		})
 
-		err = provider.UpdateIssueStatus(repoInfo.IssueNumber, statusToUse)
+		err := provider.UpdateIssueStatus(repoInfo.IssueNumber, statusToUse)
 		if err != nil {
 			// Log the error but don't fail the entire operation
 			logger.Warn("Failed to update issue status", map[string]any{
@@ -359,10 +367,12 @@ func handleReadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, provid
 	}
 
 	// Success message
-	if statusToUse != "" {
+	if labelToUse != "" && statusToUse != "" {
 		fmt.Printf("Added label '%s' and updated status to '%s' for issue #%d\n", labelToUse, statusToUse, repoInfo.IssueNumber)
-	} else {
+	} else if labelToUse != "" {
 		fmt.Printf("Added label '%s' to issue #%d\n", labelToUse, repoInfo.IssueNumber)
+	} else if statusToUse != "" {
+		fmt.Printf("Updated status to '%s' for issue #%d\n", statusToUse, repoInfo.IssueNumber)
 	}
 
 	return nil
@@ -372,14 +382,20 @@ func handleReadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, provid
 func handleUnreadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, provider services.SCMProvider, overrideLabel string, overrideStatus string, overrideUnreadyLabel string) error {
 	// Get the ready label to remove (using the same logic as ready command)
 	readyLabelToRemove := GetReadyLabel(cfg, repoInfo.Repo, overrideLabel)
-	
+
 	// Get the unready label to add (if configured)
 	unreadyLabelToAdd := GetUnreadyLabel(cfg, repoInfo.Repo, overrideUnreadyLabel)
-	
+
 	// Get the unready status to set
 	statusToUse := GetUnreadyStatus(cfg, repoInfo.Repo, overrideStatus)
 
-	logger.Info("Removing ready label", map[string]any{
+	// If no ready label configured and no status to set, this becomes a no-op
+	if readyLabelToRemove == "" && statusToUse == "" {
+		fmt.Printf("No ready label or status configured for issue #%d - no changes made\n", repoInfo.IssueNumber)
+		return nil
+	}
+
+	logger.Info("Unready operation", map[string]any{
 		"ready_label":   readyLabelToRemove,
 		"unready_label": unreadyLabelToAdd,
 		"status":        statusToUse,
@@ -387,29 +403,31 @@ func handleUnreadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, prov
 		"issue":         repoInfo.IssueNumber,
 	})
 
-	// Remove ready label
-	err := provider.RemoveLabelsFromIssue(repoInfo.IssueNumber, []string{readyLabelToRemove})
-	if err != nil {
-		if strings.Contains(err.Error(), "failed to get issue") {
-			return fmt.Errorf("issue #%d not found - check if it exists", repoInfo.IssueNumber)
-		}
-		if strings.Contains(err.Error(), "failed to remove label") {
-			return fmt.Errorf("failed to remove label '%s' from issue #%d - check your API token permissions", readyLabelToRemove, repoInfo.IssueNumber)
-		}
-		return fmt.Errorf("failed to remove label from issue: %w", err)
-	}
-
-	// Add unready label if configured
-	if unreadyLabelToAdd != "" {
-		err = provider.AddLabelsToIssue(repoInfo.IssueNumber, []string{unreadyLabelToAdd})
+	// Remove ready label if configured
+	if readyLabelToRemove != "" {
+		err := provider.RemoveLabelsFromIssue(repoInfo.IssueNumber, []string{readyLabelToRemove})
 		if err != nil {
-			// Log the error but don't fail the entire operation since we already removed the ready label
-			logger.Warn("Failed to add unready label", map[string]any{
-				"error": err.Error(),
-				"label": unreadyLabelToAdd,
-				"issue": repoInfo.IssueNumber,
-			})
-			fmt.Printf("Warning: Failed to add unready label '%s': %v\n", unreadyLabelToAdd, err)
+			if strings.Contains(err.Error(), "failed to get issue") {
+				return fmt.Errorf("issue #%d not found - check if it exists", repoInfo.IssueNumber)
+			}
+			if strings.Contains(err.Error(), "failed to remove label") {
+				return fmt.Errorf("failed to remove label '%s' from issue #%d - check your API token permissions", readyLabelToRemove, repoInfo.IssueNumber)
+			}
+			return fmt.Errorf("failed to remove label from issue: %w", err)
+		}
+
+		// Add unready label if configured
+		if unreadyLabelToAdd != "" {
+			err = provider.AddLabelsToIssue(repoInfo.IssueNumber, []string{unreadyLabelToAdd})
+			if err != nil {
+				// Log the error but don't fail the entire operation since we already removed the ready label
+				logger.Warn("Failed to add unready label", map[string]any{
+					"error": err.Error(),
+					"label": unreadyLabelToAdd,
+					"issue": repoInfo.IssueNumber,
+				})
+				fmt.Printf("Warning: Failed to add unready label '%s': %v\n", unreadyLabelToAdd, err)
+			}
 		}
 	}
 
@@ -420,7 +438,7 @@ func handleUnreadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, prov
 			"issue":  repoInfo.IssueNumber,
 		})
 
-		err = provider.UpdateIssueStatus(repoInfo.IssueNumber, statusToUse)
+		err := provider.UpdateIssueStatus(repoInfo.IssueNumber, statusToUse)
 		if err != nil {
 			// Log the error but don't fail the entire operation
 			logger.Warn("Failed to update issue status", map[string]any{
@@ -434,16 +452,18 @@ func handleUnreadyOperation(cfg *config.Settings, repoInfo *SharedRepoInfo, prov
 
 	// Success message
 	var message string
-	if unreadyLabelToAdd != "" && statusToUse != "" {
+	if readyLabelToRemove != "" && unreadyLabelToAdd != "" && statusToUse != "" {
 		message = fmt.Sprintf("Removed label '%s', added label '%s', and updated status to '%s' for issue #%d", readyLabelToRemove, unreadyLabelToAdd, statusToUse, repoInfo.IssueNumber)
-	} else if unreadyLabelToAdd != "" {
+	} else if readyLabelToRemove != "" && unreadyLabelToAdd != "" {
 		message = fmt.Sprintf("Removed label '%s' and added label '%s' for issue #%d", readyLabelToRemove, unreadyLabelToAdd, repoInfo.IssueNumber)
-	} else if statusToUse != "" {
+	} else if readyLabelToRemove != "" && statusToUse != "" {
 		message = fmt.Sprintf("Removed label '%s' and updated status to '%s' for issue #%d", readyLabelToRemove, statusToUse, repoInfo.IssueNumber)
-	} else {
+	} else if readyLabelToRemove != "" {
 		message = fmt.Sprintf("Removed label '%s' from issue #%d", readyLabelToRemove, repoInfo.IssueNumber)
+	} else if statusToUse != "" {
+		message = fmt.Sprintf("Updated status to '%s' for issue #%d", statusToUse, repoInfo.IssueNumber)
 	}
-	
+
 	fmt.Println(message)
 	logger.Debug("Unready operation completed successfully")
 	return nil
