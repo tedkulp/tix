@@ -38,7 +38,7 @@ func SetupOpenAIResources(ctx context.Context, client *openai.Client, diff strin
 	defer os.Remove(tempFile.Name())
 
 	// Write diff to the temporary file
-	if err := os.WriteFile(tempFile.Name(), []byte(diff), 0644); err != nil {
+	if err := os.WriteFile(tempFile.Name(), []byte(diff), 0o644); err != nil {
 		return nil, fmt.Errorf("failed to write diff to temporary file: %w", err)
 	}
 
