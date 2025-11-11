@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pterm/pterm"
+	openai "github.com/sashabaranov/go-openai"
 	"github.com/spf13/cobra"
 	"github.com/tedkulp/tix/internal/config"
 	"github.com/tedkulp/tix/internal/git"
@@ -32,6 +33,7 @@ var (
 	onlyIssue        bool
 	onlyMergeRequest bool
 	onlyPullRequest  bool // For GitHub users
+	useRAG           *bool // Force RAG on/off, nil means auto-detect
 )
 
 var setdescCmd = &cobra.Command{
@@ -90,27 +92,10 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 			return err
 		}
 
-		// Setup OpenAI resources
-		oaiResources, err := services.SetupOpenAIResources(cmd.Context(), client, mrInfo.Diff)
-
-		// Always defer cleanup, but only if resources were created
-		defer func() {
-			logger.Info("Cleaning up OpenAI resources", map[string]any{
-				"resources": oaiResources,
-			})
-			if oaiResources != nil {
-				services.CleanupOpenAIResources(cmd.Context(), oaiResources)
-			}
-		}()
-
-		if err != nil {
-			return fmt.Errorf("failed to setup OpenAI resources: %v", err)
-		}
-
 		// Generate and update descriptions based on flags
 		if !onlyIssue {
 			// Generate and update MR description
-			if err := generateAndUpdateMRDescription(cmd.Context(), oaiResources, repoInfo, mrInfo); err != nil {
+			if err := generateAndUpdateMRDescription(cmd.Context(), client, repoInfo, mrInfo, useRAG); err != nil {
 				if strings.Contains(err.Error(), "failed to generate") {
 					return fmt.Errorf("failed to generate description with OpenAI - try again or check API usage limits")
 				}
@@ -123,7 +108,7 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 
 		if !updateMROnly {
 			// Generate and update issue description
-			if err := generateAndUpdateIssueDescription(cmd.Context(), oaiResources, repoInfo, mrInfo); err != nil {
+			if err := generateAndUpdateIssueDescription(cmd.Context(), client, repoInfo, mrInfo, useRAG); err != nil {
 				if strings.Contains(err.Error(), "failed to generate") {
 					return fmt.Errorf("failed to generate issue description with OpenAI - try again or check API usage limits")
 				}
@@ -365,11 +350,11 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 }
 
 // generateAndUpdateMRDescription generates and updates the merge request description
-func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.OpenAIResources, repoInfo *RepoInfo, mrInfo *services.MRInfo) error {
+func generateAndUpdateMRDescription(ctx context.Context, client *openai.Client, repoInfo *RepoInfo, mrInfo *services.MRInfo, forceRAG *bool) error {
 	fmt.Println("Generating merge request description...")
 
 	// Generate the description
-	mrDescription, err := services.GenerateMRDescription(ctx, oaiResources)
+	mrDescription, err := services.GenerateMRDescriptionWithOptions(ctx, client, mrInfo.Diff, forceRAG)
 	if err != nil {
 		return fmt.Errorf("failed to generate merge request description: %w", err)
 	}
@@ -405,7 +390,7 @@ func generateAndUpdateMRDescription(ctx context.Context, oaiResources *services.
 }
 
 // generateAndUpdateIssueDescription generates and updates the issue description
-func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *services.OpenAIResources, repoInfo *RepoInfo, mrInfo *services.MRInfo) error {
+func generateAndUpdateIssueDescription(ctx context.Context, client *openai.Client, repoInfo *RepoInfo, mrInfo *services.MRInfo, forceRAG *bool) error {
 	fmt.Println("Generating issue description...")
 
 	// Get original issue details
@@ -415,7 +400,7 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 	}
 
 	// Generate the description
-	newTitle, issueDescription, err := services.GenerateIssueDescription(ctx, oaiResources, originalIssue.Title)
+	newTitle, issueDescription, err := services.GenerateIssueDescriptionWithOptions(ctx, client, mrInfo.Diff, originalIssue.Title, forceRAG)
 	if err != nil {
 		return fmt.Errorf("failed to generate issue description: %w", err)
 	}
@@ -496,4 +481,8 @@ func init() {
 	// Add flags for merge/pull request updates with different names for different platforms
 	setdescCmd.Flags().BoolVarP(&onlyMergeRequest, "only-mr", "m", false, "Only update the merge/pull request description")
 	setdescCmd.Flags().BoolVarP(&onlyPullRequest, "only-pr", "p", false, "Only update the pull request description")
+
+	// Add flag to force RAG on/off (for testing)
+	useRAG = setdescCmd.Flags().Bool("use-rag", false, "Force RAG approach on (true) or off (false). If not specified, auto-detects based on diff size")
+	setdescCmd.Flags().Lookup("use-rag").NoOptDefVal = "true"
 }
