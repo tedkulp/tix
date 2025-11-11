@@ -118,8 +118,8 @@ func (r *Repository) Push(remoteName string, branchName string) error {
 		"url":    urls[0],
 	})
 
-	// Use git command line
-	cmd := exec.Command("git", "push", remoteName, branchName)
+	// Use git command line with -u flag to set up tracking
+	cmd := exec.Command("git", "push", "-u", remoteName, branchName)
 	cmd.Dir = r.path
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -128,6 +128,11 @@ func (r *Repository) Push(remoteName string, branchName string) error {
 		})
 		return fmt.Errorf("failed to push to remote: %w", err)
 	}
+
+	logger.Debug("Branch pushed with upstream tracking", map[string]interface{}{
+		"remote": remoteName,
+		"branch": branchName,
+	})
 
 	return nil
 }
