@@ -162,7 +162,15 @@ tix setdesc --only-issue
 
 # Only update the merge/pull request description
 tix setdesc --only-mr
+
+# Force RAG (Retrieval-Augmented Generation) approach for large diffs
+tix setdesc --use-rag
+
+# Force direct approach (bypass RAG even for large diffs)
+tix setdesc --use-rag=false
 ```
+
+The `setdesc` command uses AI to generate descriptions for merge requests and issues. For large diffs (>50,000 characters), it automatically uses a RAG (Retrieval-Augmented Generation) approach with embeddings to handle content that exceeds the model's context window. The `--use-rag` flag allows you to override this behavior for testing purposes.
 
 ### Show version information
 
