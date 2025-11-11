@@ -9,7 +9,7 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8
 	github.com/pterm/pterm v0.12.80
 	github.com/rs/zerolog v1.32.0
-	github.com/sashabaranov/go-openai v1.38.2
+	github.com/sashabaranov/go-openai v1.41.2
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.0
 	gitlab.com/gitlab-org/api/client-go v0.126.0

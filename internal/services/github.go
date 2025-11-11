@@ -1,3 +1,5 @@
+// Package services provides implementations for various service integrations
+// including GitHub, GitLab, OpenAI, and SCM operations.
 package services
 
 import (
