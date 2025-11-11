@@ -423,25 +423,30 @@ func generateAndUpdateIssueDescription(ctx context.Context, oaiResources *servic
 	// Handle title update separately if a new title was generated
 	var shouldUpdateTitle bool
 	if newTitle != "" {
-		fmt.Println()
-		fmt.Println("========== ORIGINAL ISSUE TITLE ==========")
-		fmt.Println(originalIssue.Title)
-		fmt.Println("========== NEW ISSUE TITLE ==========")
-		fmt.Println(newTitle)
-		fmt.Println("========================================")
-		fmt.Println()
+		// Check if the generated title is the same as the original
+		if newTitle == originalIssue.Title {
+			fmt.Printf("Generated title matches existing title, continuing with: %s\n\n", newTitle)
+		} else {
+			fmt.Println()
+			fmt.Println("========== ORIGINAL ISSUE TITLE ==========")
+			fmt.Println(originalIssue.Title)
+			fmt.Println("========== NEW ISSUE TITLE ==========")
+			fmt.Println(newTitle)
+			fmt.Println("========================================")
+			fmt.Println()
 
-		// Get user confirmation for title update
-		titleResult, err := pterm.DefaultInteractiveConfirm.
-			WithDefaultValue(true).
-			WithDefaultText("Do you want to update the issue title?").
-			Show()
-		if err != nil {
-			return fmt.Errorf("cancelled updating issue title")
+			// Get user confirmation for title update
+			titleResult, err := pterm.DefaultInteractiveConfirm.
+				WithDefaultValue(true).
+				WithDefaultText("Do you want to update the issue title?").
+				Show()
+			if err != nil {
+				return fmt.Errorf("cancelled updating issue title")
+			}
+
+			shouldUpdateTitle = titleResult
+			fmt.Println()
 		}
-
-		shouldUpdateTitle = titleResult
-		fmt.Println()
 	}
 
 	// Show the description and prompt for confirmation
