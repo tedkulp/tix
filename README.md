@@ -9,6 +9,9 @@ A CLI tool for creating tickets and branches in Git repositories, with support f
 - Create draft merge requests/pull requests
 - Generate AI-powered descriptions for merge requests and issues
 - Mark issues as ready/not ready with configurable labels and status
+- Cross-repository issue linking with project-prefixed branch names
+- Start branches from existing issues across repositories
+- Support for issue-only repositories (no code directory required)
 - Support for Git worktrees
 - Interactive repository selection
 - Auto-detect repository based on current directory
@@ -53,6 +56,10 @@ repositories:
     worktree:
       enabled: true
       default_branch: main
+  - name: issues
+    gitlab_repo: group/issues
+    # No directory - this is an issue-only repository
+    default_labels: planning
 ```
 
 ### Configuration Options
@@ -67,7 +74,7 @@ repositories:
 - `name`: Unique name for the repository
 - `github_repo`: GitHub repository in format "owner/repo" (GitHub only)
 - `gitlab_repo`: GitLab repository in format "group/project" (GitLab only)
-- `directory`: Local directory path for the repository
+- `directory`: Local directory path for the repository (optional - omit for issue-only repositories)
 - `default_labels`: Comma-separated list of labels to add to new issues
 - `default_branch`: Default branch name (default: "main")
 - `ready_label`: Repository-specific ready label (overrides global)
@@ -105,7 +112,25 @@ tix create --title "Add new feature"
 
 # Create a new ticket and assign it to yourself
 tix create --self-assign
+
+# Create a ticket in a specific issue repository and branch in a code repository
+tix create issues my-project
 ```
+
+### Start a branch from an existing issue
+
+```bash
+# Start a branch from an issue in the current repository
+tix start 123
+
+# Start a branch from an issue in another repository
+tix start issues 456
+
+# Interactive mode - prompts for repository and issue number
+tix start
+```
+
+The `start` command creates a new branch based on an existing issue. When the issue is from a different repository than where the branch is created, the branch name will include the project prefix (e.g., `issues-456-feature-name`). This allows merge requests to properly reference issues across repositories.
 
 ### Create a merge request/pull request
 
