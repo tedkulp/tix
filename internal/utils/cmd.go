@@ -45,12 +45,16 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 	})
 
 	// Find repo that matches the current directory, or the best candidate
+	// Only consider code repos (repos with directory)
 	var matchingRepo *config.Repository
 	var repoName string
 	var bestMatchLength int = 0
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {
+		if !repo.IsCodeRepo() {
+			continue
+		}
 		absRepoDir, err := filepath.Abs(repo.Directory)
 		if err != nil {
 			continue
@@ -61,7 +65,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 			// If we found a better match (longer path prefix), use it
 			if len(absRepoDir) > bestMatchLength {
 				matchingRepo = &cfg.Repositories[i]
-				repoName = repo.Name
+				repoName = cfg.GetRepoNames()[i]
 				bestMatchLength = len(absRepoDir)
 			}
 		}
@@ -126,22 +130,47 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		"branch": currentBranch,
 	})
 
-	// Extract issue number from branch name
-	issueNumber, err := ExtractIssueNumber(currentBranch)
+	// Extract issue info from branch name (may include project name for cross-repo)
+	projectName, issueNumber, err := ExtractIssueInfo(currentBranch)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract issue number from branch '%s': %w", currentBranch, err)
 	}
 
-	logger.Info("Issue number extracted", map[string]any{
-		"issue": issueNumber,
+	logger.Info("Issue info extracted", map[string]any{
+		"project": projectName,
+		"issue":   issueNumber,
 	})
 
-	// Determine if this is GitLab or GitHub
-	isGitLab := selectedRepo.GitlabRepo != ""
+	// Determine issue repo (for cross-repo scenarios)
+	issueRepo := selectedRepo
+	issueRepoName := selectedRepoName
+	
+	if projectName != "" && projectName != selectedRepoName {
+		// Cross-repo: look up issue repo
+		issueRepo = cfg.GetRepo(projectName)
+		if issueRepo == nil {
+			return nil, fmt.Errorf("repository '%s' not found in config", projectName)
+		}
+		issueRepoName = projectName
+		
+		// Validate providers match
+		if (selectedRepo.GithubRepo != "" && issueRepo.GitlabRepo != "") ||
+			(selectedRepo.GitlabRepo != "" && issueRepo.GithubRepo != "") {
+			return nil, fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", projectName, selectedRepoName)
+		}
+		
+		logger.Info("Cross-repo scenario detected", map[string]any{
+			"code_repo":  selectedRepoName,
+			"issue_repo": issueRepoName,
+		})
+	}
+
+	// Determine if this is GitLab or GitHub (use issue repo for provider)
+	isGitLab := issueRepo.GitlabRepo != ""
 
 	return &SharedRepoInfo{
-		Repo:        selectedRepo,
-		Name:        selectedRepoName,
+		Repo:        issueRepo,
+		Name:        issueRepoName,
 		IsGitLab:    isGitLab,
 		CurrentDir:  wd,
 		IssueNumber: issueNumber,

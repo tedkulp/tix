@@ -48,12 +48,15 @@ It will extract the issue number from the branch name and create a merge request
 			"directory": wd,
 		})
 
-		// Find repo that matches the current directory
+		// Find repo that matches the current directory (only code repos)
 		var matchingRepo *config.Repository
 		var repoName string
 		var bestMatchLength int = 0 // Track the best match length
 
-		for _, repo := range cfg.Repositories {
+		for i, repo := range cfg.Repositories {
+			if !repo.IsCodeRepo() {
+				continue
+			}
 			absRepoDir, err := filepath.Abs(repo.Directory)
 			if err != nil {
 				continue
@@ -63,25 +66,30 @@ It will extract the issue number from the branch name and create a merge request
 			if strings.HasPrefix(wd, absRepoDir) {
 				// If we found a better match (longer path), use it
 				if len(absRepoDir) > bestMatchLength {
-					matchingRepo = &repo
-					repoName = repo.Name
+					matchingRepo = &cfg.Repositories[i]
+					repoName = cfg.GetRepoNames()[i]
 					bestMatchLength = len(absRepoDir)
 				}
 			}
 		}
 
-		// If no matching repo found, show selector
+		// If no matching repo found, show selector (only code repos)
 		if matchingRepo == nil {
-			repoNames := cfg.GetRepoNames()
+			codeRepoNames := []string{}
+			for i, repo := range cfg.Repositories {
+				if repo.IsCodeRepo() {
+					codeRepoNames = append(codeRepoNames, cfg.GetRepoNames()[i])
+				}
+			}
 
-			if len(repoNames) == 0 {
-				return fmt.Errorf("no repositories configured - add repositories to your config file")
+			if len(codeRepoNames) == 0 {
+				return fmt.Errorf("no code repositories configured - add repositories with 'directory' field to your config file")
 			}
 
 			// Use pterm's interactive select component
 			selectedName, err := pterm.DefaultInteractiveSelect.
-				WithOptions(repoNames).
-				WithDefaultText("Select a repository").
+				WithOptions(codeRepoNames).
+				WithDefaultText("Select a code repository").
 				WithDefaultOption(repoName).
 				Show()
 
@@ -89,16 +97,7 @@ It will extract the issue number from the branch name and create a merge request
 				return fmt.Errorf("repository selection cancelled")
 			}
 
-			// Find the index of the selected repository
-			var selectedIdx int
-			for i, name := range repoNames {
-				if name == selectedName {
-					selectedIdx = i
-					break
-				}
-			}
-
-			matchingRepo = &cfg.Repositories[selectedIdx]
+			matchingRepo = cfg.GetRepo(selectedName)
 			repoName = selectedName
 		}
 
@@ -122,14 +121,15 @@ It will extract the issue number from the branch name and create a merge request
 			"branch": currentBranch,
 		})
 
-		// Extract issue number from branch name
-		issueNumber, err := utils.ExtractIssueNumber(currentBranch)
+		// Extract issue info from branch name (may include project name for cross-repo)
+		projectName, issueNumber, err := utils.ExtractIssueInfo(currentBranch)
 		if err != nil {
-			return fmt.Errorf("couldn't extract issue number from branch name '%s' - use a branch like 'issue-123' or '123-my-feature'", currentBranch)
+			return fmt.Errorf("couldn't extract issue number from branch name '%s' - use a branch like '123-my-feature' or 'project-123-my-feature'", currentBranch)
 		}
 
-		logger.Info("Issue number extracted", map[string]interface{}{
-			"issue": issueNumber,
+		logger.Info("Issue info extracted", map[string]interface{}{
+			"project": projectName,
+			"issue":   issueNumber,
 		})
 
 		// Get target branch
@@ -138,7 +138,7 @@ It will extract the issue number from the branch name and create a merge request
 			targetBranch = matchingRepo.DefaultBranch
 		}
 
-		// Create SCM provider
+		// Create SCM provider for MR repo (where the code is)
 		var provider services.SCMProvider
 
 		if matchingRepo.GitlabRepo != "" {
@@ -153,6 +153,43 @@ It will extract the issue number from the branch name and create a merge request
 			}
 		}
 
+		// Handle cross-repo scenario
+		var issueProvider services.SCMProvider
+		var crossRepoIssueRef string
+
+		if projectName != "" && projectName != repoName {
+			// Cross-repo: look up issue repo
+			issueRepo := cfg.GetRepo(projectName)
+			if issueRepo == nil {
+				return fmt.Errorf("repository '%s' not found in config", projectName)
+			}
+
+			// Validate providers match
+			if (matchingRepo.GithubRepo != "" && issueRepo.GitlabRepo != "") ||
+				(matchingRepo.GitlabRepo != "" && issueRepo.GithubRepo != "") {
+				return fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", projectName, repoName)
+			}
+
+			// Create provider for issue repo
+			if issueRepo.GitlabRepo != "" {
+				issueProvider, err = services.NewGitLabProvider(issueRepo.GitlabRepo)
+				if err != nil {
+					return fmt.Errorf("failed to create GitLab provider for issue repo: %w", err)
+				}
+			} else {
+				issueProvider, err = services.NewGitHubProvider(issueRepo.GithubRepo)
+				if err != nil {
+					return fmt.Errorf("failed to create GitHub provider for issue repo: %w", err)
+				}
+			}
+
+			// Generate cross-repo reference
+			crossRepoIssueRef = issueProvider.GetCrossRepoIssueRef(issueNumber)
+		} else {
+			// Same repo: use same provider
+			issueProvider = nil
+		}
+
 		// Create merge request using common function
 		request, err := services.CreateMergeRequest(
 			services.CreateMergeRequestParams{
@@ -165,6 +202,8 @@ It will extract the issue number from the branch name and create a merge request
 				IsDraft:            isDraft,
 				RemoveSourceBranch: true, // always true for now
 				Squash:             true, // always true for now
+				IssueProvider:      issueProvider,
+				CrossRepoIssueRef:   crossRepoIssueRef,
 			},
 		)
 

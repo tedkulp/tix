@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
@@ -17,17 +18,17 @@ type Worktree struct {
 
 // Repository represents a single repository configuration
 type Repository struct {
-	Name           string   `yaml:"name" mapstructure:"name"`
-	Directory      string   `yaml:"directory" mapstructure:"directory"`
-	DefaultLabels  string   `yaml:"default_labels" mapstructure:"default_labels"`
-	ReadyLabel     string   `yaml:"ready_label" mapstructure:"ready_label"`
-	ReadyStatus    string   `yaml:"ready_status" mapstructure:"ready_status"`
-	UnreadyLabel   string   `yaml:"unready_label" mapstructure:"unready_label"`
-	UnreadyStatus  string   `yaml:"unready_status" mapstructure:"unready_status"`
-	GithubRepo     string   `yaml:"github_repo" mapstructure:"github_repo"`
-	GitlabRepo     string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
-	DefaultBranch  string   `yaml:"default_branch" mapstructure:"default_branch"`
-	Worktree       Worktree `yaml:"worktree,omitempty" mapstructure:"worktree"`
+	Name          string   `yaml:"name" mapstructure:"name"`
+	Directory     string   `yaml:"directory" mapstructure:"directory"`
+	DefaultLabels string   `yaml:"default_labels" mapstructure:"default_labels"`
+	ReadyLabel    string   `yaml:"ready_label" mapstructure:"ready_label"`
+	ReadyStatus   string   `yaml:"ready_status" mapstructure:"ready_status"`
+	UnreadyLabel  string   `yaml:"unready_label" mapstructure:"unready_label"`
+	UnreadyStatus string   `yaml:"unready_status" mapstructure:"unready_status"`
+	GithubRepo    string   `yaml:"github_repo" mapstructure:"github_repo"`
+	GitlabRepo    string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
+	DefaultBranch string   `yaml:"default_branch" mapstructure:"default_branch"`
+	Worktree      Worktree `yaml:"worktree,omitempty" mapstructure:"worktree"`
 }
 
 // Settings represents the root configuration
@@ -69,10 +70,12 @@ func Load() (*Settings, error) {
 		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
-	// Expand home directory in paths
+	// Expand home directory in paths (only if directory is set)
 	for i := range settings.Repositories {
 		repo := &settings.Repositories[i]
-		repo.Directory = expandHomeDir(repo.Directory)
+		if repo.Directory != "" {
+			repo.Directory = expandHomeDir(repo.Directory)
+		}
 	}
 
 	return &settings, nil
@@ -80,11 +83,23 @@ func Load() (*Settings, error) {
 
 // expandHomeDir expands the home directory in a path
 func expandHomeDir(path string) string {
+	if path == "" {
+		return path
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return path
 	}
-	return filepath.Clean(filepath.Join(home, path[2:]))
+	// Only expand if path starts with ~/
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Clean(filepath.Join(home, path[2:]))
+	}
+	return path
+}
+
+// IsCodeRepo returns true if the repository has a directory configured (i.e., it's a code repo)
+func (r *Repository) IsCodeRepo() bool {
+	return r.Directory != ""
 }
 
 // GetRepoNames returns a list of repository names

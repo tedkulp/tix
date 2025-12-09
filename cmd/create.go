@@ -23,24 +23,43 @@ var (
 
 // RepoSettings represents repository settings and configuration
 type RepoSettings struct {
-	Repo      *config.Repository
-	Name      string
-	Directory string
-	Labels    string
-	Milestone string
-	Provider  services.SCMProvider
+	Repo         *config.Repository
+	Name         string
+	Directory    string
+	Labels       string
+	Milestone    string
+	Provider     services.SCMProvider
+	CodeRepo     *config.Repository // For cross-repo: code repo where branch is created
+	CodeRepoName string             // Name of code repo
 }
 
 var createCmd = &cobra.Command{
-	Use:   "create",
+	Use:   "create [issue-repo] [code-repo]",
 	Short: "Create a new ticket and branch",
 	Long: `Create a new ticket in GitHub or GitLab and create a corresponding branch.
-If no title is provided, you will be prompted for one.`,
+If no title is provided, you will be prompted for one.
+
+Usage:
+  tix create                       # Interactive: select issue and code repos
+  tix create issues                # Create issue in issues repo, branch in current/matching repo
+  tix create issues code           # Create issue in issues repo, branch in code`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger.Debug("Starting create command")
 
+		// Parse arguments for issue repo and code repo
+		var issueRepoArg, codeRepoArg string
+		if len(args) >= 1 {
+			issueRepoArg = args[0]
+		}
+		if len(args) >= 2 {
+			codeRepoArg = args[1]
+		}
+		if len(args) > 2 {
+			return fmt.Errorf("too many arguments. Usage: tix create [issue-repo] [code-repo]")
+		}
+
 		// Setup repository and configuration
-		repoSettings, err := setupRepository()
+		repoSettings, err := setupRepository(issueRepoArg, codeRepoArg)
 		if err != nil {
 			// Provide cleaner error messages for common setup issues
 			if strings.Contains(err.Error(), "failed to load config") {
@@ -102,7 +121,12 @@ If no title is provided, you will be prompted for one.`,
 		}
 
 		// Create and checkout branch
-		if err := createBranch(gitRepo, repoSettings.Repo, issueResult.Number, issueResult.Title); err != nil {
+		// Use project prefix if issue repo differs from code repo
+		projectPrefix := ""
+		if repoSettings.Name != repoSettings.CodeRepoName {
+			projectPrefix = repoSettings.Name
+		}
+		if err := createBranch(gitRepo, repoSettings.CodeRepo, issueResult.Number, issueResult.Title, projectPrefix); err != nil {
 			if strings.Contains(err.Error(), "failed to create branch") {
 				return fmt.Errorf("branch creation failed - the issue was created but the branch couldn't be created")
 			}
@@ -121,7 +145,7 @@ If no title is provided, you will be prompted for one.`,
 }
 
 // setupRepository handles repository selection and configuration
-func setupRepository() (*RepoSettings, error) {
+func setupRepository(issueRepoArg, codeRepoArg string) (*RepoSettings, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -142,12 +166,16 @@ func setupRepository() (*RepoSettings, error) {
 	})
 
 	// Find repo that matches the current directory, or the best candidate
+	// Only consider repos with directories (code repos)
 	var matchingRepo *config.Repository
 	var repoName string
 	var bestMatchLength int = 0 // Length of the best match so far
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {
+		if !repo.IsCodeRepo() {
+			continue
+		}
 		absRepoDir, err := filepath.Abs(repo.Directory)
 		if err != nil {
 			continue
@@ -173,14 +201,25 @@ func setupRepository() (*RepoSettings, error) {
 	}
 
 	// Show repository selector with the matching repo as default if found
+	// Allow selecting any repo (including issue-only repos)
 	var selectedRepo *config.Repository
 	var selectedRepoName string
 
-	if len(repoNames) > 1 { // Only show the selector if there's more than one repo
-		// Use pterm's interactive select component
+	if issueRepoArg != "" {
+		// Issue repo specified as argument
+		selectedRepo = cfg.GetRepo(issueRepoArg)
+		if selectedRepo == nil {
+			return nil, fmt.Errorf("repository '%s' not found in config", issueRepoArg)
+		}
+		selectedRepoName = issueRepoArg
+		logger.Info("Using issue repository from argument", map[string]interface{}{
+			"repo": selectedRepoName,
+		})
+	} else if len(repoNames) > 1 {
+		// Multiple repos: show selector with matching repo as default
 		selectedName, err := pterm.DefaultInteractiveSelect.
 			WithOptions(repoNames).
-			WithDefaultText("Select a repository").
+			WithDefaultText("Select a repository for the issue").
 			WithDefaultOption(repoName).
 			Show()
 
@@ -188,16 +227,7 @@ func setupRepository() (*RepoSettings, error) {
 			return nil, fmt.Errorf("failed to select repository: %w", err)
 		}
 
-		// Find the index of the selected repository
-		var selectedIdx int
-		for i, name := range repoNames {
-			if name == selectedName {
-				selectedIdx = i
-				break
-			}
-		}
-
-		selectedRepo = &cfg.Repositories[selectedIdx]
+		selectedRepo = cfg.GetRepo(selectedName)
 		selectedRepoName = selectedName
 	} else if len(repoNames) == 1 {
 		// If only one repo exists, use it
@@ -241,11 +271,72 @@ func setupRepository() (*RepoSettings, error) {
 		provider = gitlabProvider
 	}
 
+	// Determine code repo (where branch will be created)
+	var codeRepo *config.Repository
+	var codeRepoName string
+
+	if codeRepoArg != "" {
+		// Code repo specified as argument
+		codeRepo = cfg.GetRepo(codeRepoArg)
+		if codeRepo == nil {
+			return nil, fmt.Errorf("repository '%s' not found in config", codeRepoArg)
+		}
+		if !codeRepo.IsCodeRepo() {
+			return nil, fmt.Errorf("repository '%s' is not a code repository (missing 'directory' field)", codeRepoArg)
+		}
+		codeRepoName = codeRepoArg
+		logger.Info("Using code repository from argument", map[string]interface{}{
+			"repo": codeRepoName,
+		})
+
+		// Validate providers match
+		if (selectedRepo.GithubRepo != "" && codeRepo.GitlabRepo != "") ||
+			(selectedRepo.GitlabRepo != "" && codeRepo.GithubRepo != "") {
+			return nil, fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", selectedRepoName, codeRepoName)
+		}
+	} else if selectedRepo.IsCodeRepo() {
+		// Selected repo has directory, use it
+		codeRepo = selectedRepo
+		codeRepoName = selectedRepoName
+	} else {
+		// Selected repo is issue-only, prompt for code repo
+		codeRepoNames := []string{}
+		for i, repo := range cfg.Repositories {
+			if repo.IsCodeRepo() {
+				codeRepoNames = append(codeRepoNames, cfg.GetRepoNames()[i])
+			}
+		}
+
+		if len(codeRepoNames) == 0 {
+			return nil, fmt.Errorf("no code repositories configured (repos with 'directory' field)")
+		}
+
+		selectedCodeName, err := pterm.DefaultInteractiveSelect.
+			WithOptions(codeRepoNames).
+			WithDefaultText("Select a code repository for the branch").
+			WithDefaultOption(repoName).
+			Show()
+		if err != nil {
+			return nil, fmt.Errorf("code repository selection cancelled")
+		}
+
+		codeRepo = cfg.GetRepo(selectedCodeName)
+		codeRepoName = selectedCodeName
+
+		// Validate providers match
+		if (selectedRepo.GithubRepo != "" && codeRepo.GitlabRepo != "") ||
+			(selectedRepo.GitlabRepo != "" && codeRepo.GithubRepo != "") {
+			return nil, fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", selectedRepoName, codeRepoName)
+		}
+	}
+
 	return &RepoSettings{
-		Repo:      selectedRepo,
-		Name:      selectedRepoName,
-		Directory: selectedRepo.Directory,
-		Provider:  provider,
+		Repo:         selectedRepo,
+		Name:         selectedRepoName,
+		Directory:    codeRepo.Directory,
+		Provider:     provider,
+		CodeRepo:     codeRepo,
+		CodeRepoName: codeRepoName,
 	}, nil
 }
 
@@ -366,9 +457,14 @@ func createIssue(settings *RepoSettings) (*services.IssueResult, error) {
 }
 
 // createBranch creates and checks out a new branch
-func createBranch(gitRepo *git.Repository, repo *config.Repository, issueNumber int, issueTitle string) error {
+func createBranch(gitRepo *git.Repository, repo *config.Repository, issueNumber int, issueTitle string, projectPrefix string) error {
 	// Create branch name
-	branchName := fmt.Sprintf("%d-%s", issueNumber, utils.TruncateAndDashCase(issueTitle, 50))
+	var branchName string
+	if projectPrefix != "" {
+		branchName = fmt.Sprintf("%s-%d-%s", projectPrefix, issueNumber, utils.TruncateAndDashCase(issueTitle, 50))
+	} else {
+		branchName = fmt.Sprintf("%d-%s", issueNumber, utils.TruncateAndDashCase(issueTitle, 50))
+	}
 	logger.Debug("Branch name created", map[string]interface{}{
 		"branch": branchName,
 	})
