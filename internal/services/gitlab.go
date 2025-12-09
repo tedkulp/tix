@@ -196,23 +196,17 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 
 // GetOpenMergeRequestsForIssue returns all open merge requests related to an issue
 func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMergeRequest, error) {
-	opts := &gitlab.ListProjectMergeRequestsOptions{
-		State: gitlab.Ptr("opened"),
-	}
-
-	allMRs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts)
+	// Use GitLab's API to get MRs related to this issue
+	// This includes MRs that mention the issue in any way, not just those that close it
+	mrs, _, err := p.client.Issues.ListMergeRequestsRelatedToIssue(p.pid, issueID, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list merge requests: %w", err)
+		return nil, fmt.Errorf("failed to get merge requests for issue: %w", err)
 	}
 
 	var matchingMRs []*GitlabMergeRequest
-	for _, mr := range allMRs {
-		// Check if the description contains a reference to the issue
-		issueRef := fmt.Sprintf("#%d", issueID)
-		issueRefAlt := fmt.Sprintf("Closes #%d", issueID)
-
-		if strings.Contains(mr.Description, issueRef) || strings.Contains(mr.Description, issueRefAlt) {
-			// isDraft := mr.WorkInProgress || strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
+	for _, mr := range mrs {
+		// Only include open MRs
+		if mr.State == "opened" {
 			isDraft := strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
 			matchingMRs = append(matchingMRs, &GitlabMergeRequest{
 				IID:     mr.IID,
@@ -248,13 +242,16 @@ func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
 }
 
 // CreateMergeRequest creates a new merge request in the repository
-func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, options CreateMergeRequestOptions) (*GitlabMergeRequest, error) {
+func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch string, issueIID int, options CreateMergeRequestOptions, descriptionOverride string) (*GitlabMergeRequest, error) {
 	// Add "Draft:" prefix if it's a draft MR
 	if options.IsDraft {
 		title = "Draft: " + title
 	}
 
-	description := fmt.Sprintf("Closes #%d", issueIID)
+	description := descriptionOverride
+	if description == "" {
+		description = fmt.Sprintf("Closes #%d", issueIID)
+	}
 
 	// Create MR options
 	opt := &gitlab.CreateMergeRequestOptions{
@@ -762,7 +759,7 @@ func (p *GitLabProvider) CreateMergeRequest(params MergeRequestParams) (*Request
 		Squash:             params.Squash,
 	}
 
-	mr, err := p.project.CreateMergeRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, options)
+	mr, err := p.project.CreateMergeRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, options, params.Description)
 	if err != nil {
 		// Check if this is a "merge request already exists" error
 		if strings.Contains(err.Error(), "Another open merge request already exists for this source branch") {
@@ -805,6 +802,11 @@ func (p *GitLabProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 // GetURL returns the GitLab URL for the repo
 func (p *GitLabProvider) GetURL() string {
 	return fmt.Sprintf("https://gitlab.com/%s", p.project.pid)
+}
+
+// GetCrossRepoIssueRef returns a cross-repo issue reference for GitLab
+func (p *GitLabProvider) GetCrossRepoIssueRef(issueNumber int) string {
+	return fmt.Sprintf("%s#%d", p.project.pid, issueNumber)
 }
 
 // CreateIssue implements the SCMProvider interface

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-12-09
+
+### Fixed
+- `setdesc` command now uses GitLab's `related_merge_requests` API for efficient MR lookup instead of fetching all open MRs
+- GitHub PR lookup now uses timeline API to find linked PRs instead of searching through all open PRs
+- Significantly improved performance when working with repositories that have many open MRs/PRs
+
 ## [0.6.0] - 2025-12-02
 
 ### Added
@@ -119,7 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 - Makefile for common development tasks
 
-[Unreleased]: https://github.com/tedkulp/tix/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/tedkulp/tix/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/tedkulp/tix/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/tedkulp/tix/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tedkulp/tix/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/tedkulp/tix/compare/v0.4.0...v0.4.1

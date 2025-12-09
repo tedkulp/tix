@@ -68,6 +68,30 @@ func TestTruncateAndDashCase(t *testing.T) {
 			maxLen: 20,
 			want:   "user-profile-name",
 		},
+		{
+			name:   "acronym IRSA",
+			input:  "Setup Airflow IRSA permissions",
+			maxLen: 50,
+			want:   "setup-airflow-irsa-permissions",
+		},
+		{
+			name:   "acronym AWS",
+			input:  "Configure AWS S3 Bucket",
+			maxLen: 50,
+			want:   "configure-aws-s3-bucket",
+		},
+		{
+			name:   "mixed acronym and camelCase",
+			input:  "setupIRSAPermissions",
+			maxLen: 50,
+			want:   "setup-irsa-permissions",
+		},
+		{
+			name:   "acronym at end",
+			input:  "Service Account IRSA",
+			maxLen: 50,
+			want:   "service-account-irsa",
+		},
 	}
 
 	for _, tt := range tests {

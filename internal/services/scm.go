@@ -19,6 +19,7 @@ type MergeRequestParams struct {
 	MilestoneID        int
 	RemoveSourceBranch bool
 	Squash             bool
+	Description        string // Optional description - if empty, will use default "Closes #X" format
 }
 
 // IssueParams holds parameters for creating an issue
@@ -54,6 +55,11 @@ type SCMProvider interface {
 
 	// GetURL returns the URL for the created request
 	GetURL() string
+
+	// GetCrossRepoIssueRef returns a cross-repo issue reference string
+	// For GitHub: returns "owner/repo#123"
+	// For GitLab: returns "group/project#123"
+	GetCrossRepoIssueRef(issueNumber int) string
 }
 
 // RequestResult represents a merge/pull request result
@@ -84,6 +90,10 @@ type CreateMergeRequestParams struct {
 	IsDraft            bool
 	RemoveSourceBranch bool
 	Squash             bool
+	// IssueProvider is optional - if set, used to fetch issue details (for cross-repo scenarios)
+	IssueProvider SCMProvider
+	// CrossRepoIssueRef is optional - if set, used in MR description instead of simple "#123"
+	CrossRepoIssueRef string
 }
 
 // CreateMergeRequest contains the common flow for creating a merge/pull request
@@ -114,8 +124,13 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 		return nil, fmt.Errorf("failed to push to %s: %w", params.Remote, err)
 	}
 
-	// Get issue details
-	issue, err := params.Provider.GetIssue(params.IssueNumber)
+	// Get issue details - use IssueProvider if provided (cross-repo), otherwise use Provider (same-repo)
+	issueProvider := params.Provider
+	if params.IssueProvider != nil {
+		issueProvider = params.IssueProvider
+	}
+
+	issue, err := issueProvider.GetIssue(params.IssueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue details: %w", err)
 	}
@@ -130,6 +145,12 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 	})
 
 	// Create request params
+	// Use cross-repo reference if provided, otherwise use default format
+	description := ""
+	if params.CrossRepoIssueRef != "" {
+		description = fmt.Sprintf("Closes %s", params.CrossRepoIssueRef)
+	}
+
 	mrParams := MergeRequestParams{
 		Title:              requestTitle,
 		SourceBranch:       params.CurrentBranch,
@@ -140,6 +161,7 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 		MilestoneID:        issue.MilestoneID,
 		RemoveSourceBranch: params.RemoveSourceBranch,
 		Squash:             params.Squash,
+		Description:        description,
 	}
 
 	// Create request

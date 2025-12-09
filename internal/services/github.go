@@ -99,27 +99,40 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 
 // GetOpenPullRequestsForIssue returns all open pull requests related to an issue
 func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubPullRequest, error) {
-	opts := &github.PullRequestListOptions{
-		State: "open",
-	}
-
-	allPRs, _, err := p.client.PullRequests.List(context.Background(), p.owner, p.repo, opts)
+	ctx := context.Background()
+	
+	// Get timeline events for the issue to find linked PRs
+	events, _, err := p.client.Issues.ListIssueTimeline(ctx, p.owner, p.repo, issueNumber, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list pull requests: %w", err)
+		return nil, fmt.Errorf("failed to get issue timeline: %w", err)
 	}
 
-	var matchingPRs []*GithubPullRequest
-	for _, pr := range allPRs {
-		// Check if the body contains a reference to the issue
-		issueRef := fmt.Sprintf("#%d", issueNumber)
-		issueRefAlt := fmt.Sprintf("Closes #%d", issueNumber)
+	// Collect unique PR numbers from cross-referenced events
+	prNumbers := make(map[int]bool)
+	for _, event := range events {
+		if event.GetEvent() == "cross-referenced" && event.Source != nil {
+			if issue := event.Source.Issue; issue != nil && issue.PullRequestLinks != nil {
+				// This is a PR cross-reference
+				prNumbers[issue.GetNumber()] = true
+			}
+		}
+	}
 
-		if pr.Body != nil && (strings.Contains(*pr.Body, issueRef) || strings.Contains(*pr.Body, issueRefAlt)) {
+	// Fetch details for each PR and filter for open ones
+	var matchingPRs []*GithubPullRequest
+	for prNum := range prNumbers {
+		pr, _, err := p.client.PullRequests.Get(ctx, p.owner, p.repo, prNum)
+		if err != nil {
+			continue // Skip PRs we can't fetch
+		}
+		
+		// Only include open PRs
+		if pr.GetState() == "open" {
 			matchingPRs = append(matchingPRs, &GithubPullRequest{
-				Number:  *pr.Number,
-				Title:   *pr.Title,
-				HTMLURL: *pr.HTMLURL,
-				IsDraft: *pr.Draft,
+				Number:  pr.GetNumber(),
+				Title:   pr.GetTitle(),
+				HTMLURL: pr.GetHTMLURL(),
+				IsDraft: pr.GetDraft(),
 			})
 		}
 	}
@@ -128,8 +141,11 @@ func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubP
 }
 
 // CreatePullRequest creates a new pull request in the repository
-func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, issueLabels []string) (*GithubPullRequest, error) {
-	body := fmt.Sprintf("Closes #%d", issueNumber)
+func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, issueLabels []string, descriptionOverride string) (*GithubPullRequest, error) {
+	body := descriptionOverride
+	if body == "" {
+		body = fmt.Sprintf("Closes #%d", issueNumber)
+	}
 
 	// Create PR options
 	pr := &github.NewPullRequest{
@@ -358,7 +374,7 @@ func (p *GitHubProvider) CreateMergeRequest(params MergeRequestParams) (*Request
 	// GitHub API doesn't support removeSourceBranch option directly,
 	// it would have to be done via repository settings or post-PR operation
 
-	pr, err := p.project.CreatePullRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, params.IsDraft, params.Labels)
+	pr, err := p.project.CreatePullRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, params.IsDraft, params.Labels, params.Description)
 	if err != nil {
 		// Check for GitHub's "pull request already exists" error
 		// GitHub error message contains something like "A pull request already exists for octocat:patch-1."
@@ -409,6 +425,11 @@ func (p *GitHubProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 // GetURL returns the GitHub URL for the repo
 func (p *GitHubProvider) GetURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s", p.project.owner, p.project.repo)
+}
+
+// GetCrossRepoIssueRef returns a cross-repo issue reference for GitHub
+func (p *GitHubProvider) GetCrossRepoIssueRef(issueNumber int) string {
+	return fmt.Sprintf("%s/%s#%d", p.project.owner, p.project.repo, issueNumber)
 }
 
 // CreateIssue implements the SCMProvider interface
