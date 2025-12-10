@@ -19,21 +19,21 @@ import (
 
 // RepoInfo holds information about a selected repository and related data
 type RepoInfo struct {
-	Repo                    *config.Repository
-	Name                    string
-	IsGitLab                bool
-	CurrentDir              string
-	IssueNumber             int
-	Branch                  string
-	DescriptionProvider     services.MRDescriptionProvider     // For MR operations (code repo)
-	IssueDescriptionProvider services.MRDescriptionProvider    // For issue operations (may be different repo)
+	Repo                     *config.Repository
+	Name                     string
+	IsGitLab                 bool
+	CurrentDir               string
+	IssueNumber              int
+	Branch                   string
+	DescriptionProvider      services.MRDescriptionProvider // For MR operations (code repo)
+	IssueDescriptionProvider services.MRDescriptionProvider // For issue operations (may be different repo)
 }
 
 // Command flags
 var (
 	onlyIssue        bool
 	onlyMergeRequest bool
-	onlyPullRequest  bool // For GitHub users
+	onlyPullRequest  bool  // For GitHub users
 	useRAG           *bool // Force RAG on/off, nil means auto-detect
 )
 
@@ -150,7 +150,7 @@ func selectRepository() (*RepoInfo, error) {
 	// Only consider code repos (repos with directory)
 	var matchingRepo *config.Repository
 	var repoName string
-	var bestMatchLength int = 0
+	bestMatchLength := 0
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {
@@ -268,22 +268,22 @@ func selectRepository() (*RepoInfo, error) {
 
 	// Determine issue repo (for cross-repo scenarios)
 	issueRepo := selectedRepo
-	issueRepoName := selectedRepoName
-	
+	// issueRepoName := selectedRepoName
+
 	if projectName != "" && projectName != selectedRepoName {
 		// Cross-repo: look up issue repo
 		issueRepo = cfg.GetRepo(projectName)
 		if issueRepo == nil {
 			return nil, fmt.Errorf("repository '%s' not found in config", projectName)
 		}
-		issueRepoName = projectName
-		
+		issueRepoName := projectName
+
 		// Validate providers match
 		if (selectedRepo.GithubRepo != "" && issueRepo.GitlabRepo != "") ||
 			(selectedRepo.GitlabRepo != "" && issueRepo.GithubRepo != "") {
 			return nil, fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", projectName, selectedRepoName)
 		}
-		
+
 		logger.Info("Cross-repo scenario detected", map[string]any{
 			"code_repo":  selectedRepoName,
 			"issue_repo": issueRepoName,

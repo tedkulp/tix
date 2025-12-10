@@ -169,7 +169,7 @@ func setupRepository(issueRepoArg, codeRepoArg string) (*RepoSettings, error) {
 	// Only consider repos with directories (code repos)
 	var matchingRepo *config.Repository
 	var repoName string
-	var bestMatchLength int = 0 // Length of the best match so far
+	var bestMatchLength = 0 // Length of the best match so far
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {

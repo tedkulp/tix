@@ -25,6 +25,7 @@ help:
 	@echo "  make run          - Build and run the application"
 	@echo "  make install      - Install the application"
 	@echo "  make lint         - Run linting tools"
+	@echo "  make lint-fix     - Run linting tools and automatically fix issues"
 	@echo "  make vet          - Run go vet"
 	@echo "  make format       - Format code using gofmt"
 	@echo "  make install-tools - Install required tools" 
@@ -64,6 +65,10 @@ install: build
 lint: install-tools
 	@echo "Linting code..."
 	@golangci-lint run ./...
+
+lint-fix: install-tools
+	@echo "Linting and fixing code..."
+	@golangci-lint run --fix ./...
 
 vet:
 	@echo "Vetting code..."
