@@ -35,16 +35,16 @@ type VectorStore struct {
 func ChunkDiff(diff string) []Chunk {
 	var chunks []Chunk
 	lines := strings.Split(diff, "\n")
-	
+
 	const maxLinesPerChunk = 800
 	const minLinesPerChunk = 100
-	
+
 	// Try to split by files first
 	var currentChunk strings.Builder
 	var currentFilePath string
 	var currentLines int
 	chunkIndex := 0
-	
+
 	for i, line := range lines {
 		// Detect file headers in diff format
 		if strings.HasPrefix(line, "diff --git") || strings.HasPrefix(line, "+++") {
@@ -53,11 +53,11 @@ func ChunkDiff(diff string) []Chunk {
 				currentFilePath = strings.TrimPrefix(line, "+++ b/")
 			}
 		}
-		
+
 		currentChunk.WriteString(line)
 		currentChunk.WriteString("\n")
 		currentLines++
-		
+
 		// Create a chunk when we hit the max size or at file boundaries
 		shouldCreateChunk := false
 		if currentLines >= maxLinesPerChunk {
@@ -66,7 +66,7 @@ func ChunkDiff(diff string) []Chunk {
 			// New file starting and we have minimum content
 			shouldCreateChunk = true
 		}
-		
+
 		if shouldCreateChunk {
 			content := currentChunk.String()
 			if strings.TrimSpace(content) != "" {
@@ -82,7 +82,7 @@ func ChunkDiff(diff string) []Chunk {
 			currentLines = 0
 		}
 	}
-	
+
 	// Add remaining content
 	if currentChunk.Len() > 0 {
 		content := currentChunk.String()
@@ -95,12 +95,12 @@ func ChunkDiff(diff string) []Chunk {
 			})
 		}
 	}
-	
+
 	logger.Debug("Chunked diff", map[string]any{
 		"total_chunks": len(chunks),
 		"total_lines":  len(lines),
 	})
-	
+
 	return chunks
 }
 
@@ -109,9 +109,9 @@ func GenerateEmbeddings(ctx context.Context, client *openai.Client, chunks []Chu
 	if len(chunks) == 0 {
 		return nil, fmt.Errorf("no chunks to embed")
 	}
-	
+
 	vectors := make([]EmbeddingVector, 0, len(chunks))
-	
+
 	// Process in batches to avoid rate limits (OpenAI allows up to 2048 inputs per request)
 	batchSize := 50
 	for i := 0; i < len(chunks); i += batchSize {
@@ -119,18 +119,18 @@ func GenerateEmbeddings(ctx context.Context, client *openai.Client, chunks []Chu
 		if end > len(chunks) {
 			end = len(chunks)
 		}
-		
+
 		batch := chunks[i:end]
 		inputs := make([]string, len(batch))
 		for j, chunk := range batch {
 			inputs[j] = chunk.Content
 		}
-		
+
 		logger.Debug("Generating embeddings", map[string]any{
 			"batch_start": i,
 			"batch_size":  len(batch),
 		})
-		
+
 		resp, err := client.CreateEmbeddings(ctx, openai.EmbeddingRequestStrings{
 			Input: inputs,
 			Model: openai.SmallEmbedding3,
@@ -138,7 +138,7 @@ func GenerateEmbeddings(ctx context.Context, client *openai.Client, chunks []Chu
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate embeddings: %w", err)
 		}
-		
+
 		for j, embeddingData := range resp.Data {
 			vectors = append(vectors, EmbeddingVector{
 				Chunk:     &batch[j],
@@ -146,11 +146,11 @@ func GenerateEmbeddings(ctx context.Context, client *openai.Client, chunks []Chu
 			})
 		}
 	}
-	
+
 	logger.Info("Generated embeddings", map[string]any{
 		"total_vectors": len(vectors),
 	})
-	
+
 	return vectors, nil
 }
 
@@ -159,18 +159,18 @@ func CosineSimilarity(v1, v2 []float32) float64 {
 	if len(v1) != len(v2) {
 		return 0.0
 	}
-	
+
 	var dotProduct, norm1, norm2 float64
 	for i := range v1 {
 		dotProduct += float64(v1[i]) * float64(v2[i])
 		norm1 += float64(v1[i]) * float64(v1[i])
 		norm2 += float64(v2[i]) * float64(v2[i])
 	}
-	
+
 	if norm1 == 0 || norm2 == 0 {
 		return 0.0
 	}
-	
+
 	return dotProduct / (math.Sqrt(norm1) * math.Sqrt(norm2))
 }
 
@@ -192,9 +192,9 @@ func (vs *VectorStore) Search(queryEmbedding []float32, topK int) []SearchResult
 	if len(vs.Vectors) == 0 {
 		return nil
 	}
-	
+
 	results := make([]SearchResult, 0, len(vs.Vectors))
-	
+
 	for i := range vs.Vectors {
 		similarity := CosineSimilarity(queryEmbedding, vs.Vectors[i].Embedding)
 		results = append(results, SearchResult{
@@ -202,17 +202,17 @@ func (vs *VectorStore) Search(queryEmbedding []float32, topK int) []SearchResult
 			Similarity: similarity,
 		})
 	}
-	
+
 	// Sort by similarity (highest first)
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Similarity > results[j].Similarity
 	})
-	
+
 	// Return top-K results
 	if topK > len(results) {
 		topK = len(results)
 	}
-	
+
 	return results[:topK]
 }
 
@@ -220,4 +220,3 @@ func (vs *VectorStore) Search(queryEmbedding []float32, topK int) []SearchResult
 func EstimateTokenCount(text string) int {
 	return len(text) / 4
 }
-

@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	unreadyLabel       string
-	unreadyStatus      string
-	unreadyLabelToAdd  string
+	unreadyLabel      string
+	unreadyStatus     string
+	unreadyLabelToAdd string
 )
 
 var unreadyCmd = &cobra.Command{

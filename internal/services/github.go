@@ -100,7 +100,7 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 // GetOpenPullRequestsForIssue returns all open pull requests related to an issue
 func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubPullRequest, error) {
 	ctx := context.Background()
-	
+
 	// Get timeline events for the issue to find linked PRs
 	events, _, err := p.client.Issues.ListIssueTimeline(ctx, p.owner, p.repo, issueNumber, nil)
 	if err != nil {
@@ -125,7 +125,7 @@ func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubP
 		if err != nil {
 			continue // Skip PRs we can't fetch
 		}
-		
+
 		// Only include open PRs
 		if pr.GetState() == "open" {
 			matchingPRs = append(matchingPRs, &GithubPullRequest{

@@ -48,7 +48,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 	// Only consider code repos (repos with directory)
 	var matchingRepo *config.Repository
 	var repoName string
-	var bestMatchLength int = 0
+	var bestMatchLength = 0
 
 	repoNames := cfg.GetRepoNames()
 	for i, repo := range cfg.Repositories {
@@ -144,7 +144,7 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 	// Determine issue repo (for cross-repo scenarios)
 	issueRepo := selectedRepo
 	issueRepoName := selectedRepoName
-	
+
 	if projectName != "" && projectName != selectedRepoName {
 		// Cross-repo: look up issue repo
 		issueRepo = cfg.GetRepo(projectName)
@@ -152,13 +152,13 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 			return nil, fmt.Errorf("repository '%s' not found in config", projectName)
 		}
 		issueRepoName = projectName
-		
+
 		// Validate providers match
 		if (selectedRepo.GithubRepo != "" && issueRepo.GitlabRepo != "") ||
 			(selectedRepo.GitlabRepo != "" && issueRepo.GithubRepo != "") {
 			return nil, fmt.Errorf("issue repo '%s' and code repo '%s' must use the same provider", projectName, selectedRepoName)
 		}
-		
+
 		logger.Info("Cross-repo scenario detected", map[string]any{
 			"code_repo":  selectedRepoName,
 			"issue_repo": issueRepoName,

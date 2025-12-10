@@ -51,7 +51,7 @@ It will extract the issue number from the branch name and create a merge request
 		// Find repo that matches the current directory (only code repos)
 		var matchingRepo *config.Repository
 		var repoName string
-		var bestMatchLength int = 0 // Track the best match length
+		var bestMatchLength = 0 // Track the best match length
 
 		for i, repo := range cfg.Repositories {
 			if !repo.IsCodeRepo() {
@@ -203,7 +203,7 @@ It will extract the issue number from the branch name and create a merge request
 				RemoveSourceBranch: true, // always true for now
 				Squash:             true, // always true for now
 				IssueProvider:      issueProvider,
-				CrossRepoIssueRef:   crossRepoIssueRef,
+				CrossRepoIssueRef:  crossRepoIssueRef,
 			},
 		)
 
