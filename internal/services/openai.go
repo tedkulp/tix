@@ -21,7 +21,7 @@ func NewOpenAIClient() (*openai.Client, error) {
 
 // buildMRPrompt creates the prompt for MR description generation
 func buildMRPrompt(diffContent string) string {
-	return fmt.Sprintf(`Generate a concise and informative merge request description based on the following changes:
+	return fmt.Sprintf(`Generate a brief merge request description based on the following changes. Be concise - prefer 1-2 bullet points per section rather than exhaustive lists.
 
 %s
 
@@ -31,23 +31,19 @@ Please format the description EXACTLY in the following structure:
 
 ### Summary
 
-A clear and concise summary of the changes (1-3 sentences). Focus on what was done and why.
+1-3 sentences explaining what changed and why.
 
 ### For Developers
 
-Technical details about implementation, architecture changes, and code modifications. Include:
-- Major code changes and their purpose
-- New components or modules added
-- Any performance considerations
-- Breaking changes or deprecations
+Key technical changes (1-5 bullet points):
+- Only mention significant changes, new components, breaking changes or SERIOUS performance considerations
+- Skip obvious implementation details
 
 ### For Quality
 
-Information relevant for testers and QA:
-- What should be tested
-- Potential edge cases to consider
-- Any specific testing procedures required
-- Areas that might be impacted by these changes`, diffContent)
+What to test (1-5 bullet points with markdown checkboxes):
+- [ ] Focus on user-facing changes and critical paths
+- [ ] Skip testing details that are self-evident`, diffContent)
 }
 
 // buildIssuePrompt creates the prompt for issue description generation
