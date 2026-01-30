@@ -530,10 +530,10 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 func (p *GitlabProject) getStatusID(statusName string) (string, error) {
 	// Query to get available statuses for the project
 	query := `
-		query namespaceWorkItemTypes($fullPath: ID!, $name: IssueType) {
+		query namespaceWorkItemTypes($fullPath: ID!) {
 			workspace: namespace(fullPath: $fullPath) {
 				id
-				workItemTypes(name: $name) {
+				workItemTypes {
 					nodes {
 						id
 						name
@@ -554,7 +554,6 @@ func (p *GitlabProject) getStatusID(statusName string) (string, error) {
 
 	variables := map[string]any{
 		"fullPath": p.pid,
-		"name":     "ISSUE",
 	}
 
 	request := GraphQLRequest{

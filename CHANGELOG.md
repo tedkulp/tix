@@ -7,11 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-01-30
+
+### Fixed
+- Fixed issue description generation in `setdesc` command by using valid OpenAI model constant (GPT-5 Mini) instead of invalid GPT4o constant
+- Fixed `ready` and `unready` commands failing with GraphQL internal server error by removing deprecated IssueType parameter from workItemTypes query
+
 ## [0.6.3] - 2026-01-15
 
 ### Changed
 - Made AI-generated MR descriptions more concise, limiting each section to 1-5 bullet points instead of exhaustive lists
 - Updated OpenAI prompts to focus on significant changes and skip obvious implementation details
+
+## [0.6.2] - 2025-12-10
+
+### Fixed
+- Updated golangci-lint configuration to version 2 format
+- Fixed linting errors across multiple files
+- Code formatting and linting compliance improvements
+
+### Changed
+- Added `make lint-fix` target for automatically fixing linting issues
 
 ## [0.6.1] - 2025-12-09
 
@@ -133,7 +149,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Makefile for common development tasks
 
 [Unreleased]: https://github.com/tedkulp/tix/compare/v0.6.3...HEAD
-[0.6.3]: https://github.com/tedkulp/tix/compare/v0.6.1...v0.6.3
+[0.6.3]: https://github.com/tedkulp/tix/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/tedkulp/tix/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/tedkulp/tix/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/tedkulp/tix/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/tedkulp/tix/compare/v0.4.1...v0.5.0
