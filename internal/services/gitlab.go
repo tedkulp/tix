@@ -194,6 +194,34 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 	}, nil
 }
 
+// GetOpenMergeRequestsByBranch returns all open merge requests for a specific source branch
+func (p *GitlabProject) GetOpenMergeRequestsByBranch(branchName string) ([]*GitlabMergeRequest, error) {
+	// Use GitLab's API to get MRs by source branch
+	// This works in cross-repo scenarios where the issue doesn't exist in the code repo
+	opts := &gitlab.ListProjectMergeRequestsOptions{
+		SourceBranch: gitlab.Ptr(branchName),
+		State:        gitlab.Ptr("opened"),
+	}
+
+	mrs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get merge requests for branch: %w", err)
+	}
+
+	var matchingMRs []*GitlabMergeRequest
+	for _, mr := range mrs {
+		isDraft := strings.HasPrefix(mr.Title, "Draft:") || strings.HasPrefix(mr.Title, "WIP:")
+		matchingMRs = append(matchingMRs, &GitlabMergeRequest{
+			IID:     mr.IID,
+			Title:   mr.Title,
+			WebURL:  mr.WebURL,
+			IsDraft: isDraft,
+		})
+	}
+
+	return matchingMRs, nil
+}
+
 // GetOpenMergeRequestsForIssue returns all open merge requests related to an issue
 func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMergeRequest, error) {
 	// Use GitLab's API to get MRs related to this issue
@@ -731,6 +759,26 @@ func NewGitLabProvider(repo string) (*GitLabProvider, error) {
 // GetOpenRequests returns the open merge requests related to an issue
 func (p *GitLabProvider) GetOpenRequests(issueNumber int) ([]RequestResult, error) {
 	gitlabMRs, err := p.project.GetOpenMergeRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]RequestResult, len(gitlabMRs))
+	for i, mr := range gitlabMRs {
+		results[i] = RequestResult{
+			ID:      mr.IID,
+			Title:   mr.Title,
+			URL:     mr.WebURL,
+			IsDraft: mr.IsDraft,
+		}
+	}
+
+	return results, nil
+}
+
+// GetOpenRequestsByBranch returns the open merge requests for a specific source branch
+func (p *GitLabProvider) GetOpenRequestsByBranch(branchName string) ([]RequestResult, error) {
+	gitlabMRs, err := p.project.GetOpenMergeRequestsByBranch(branchName)
 	if err != nil {
 		return nil, err
 	}

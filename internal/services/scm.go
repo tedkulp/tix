@@ -41,6 +41,10 @@ type SCMProvider interface {
 	// GetOpenRequests returns the open merge/pull requests for an issue
 	GetOpenRequests(issueNumber int) ([]RequestResult, error)
 
+	// GetOpenRequestsByBranch returns the open merge/pull requests for a specific source branch
+	// This is useful in cross-repo scenarios where the issue doesn't exist in the code repo
+	GetOpenRequestsByBranch(branchName string) ([]RequestResult, error)
+
 	// GetIssue returns an issue by its number
 	GetIssue(issueNumber int) (*IssueResult, error)
 
@@ -99,7 +103,20 @@ type CreateMergeRequestParams struct {
 // CreateMergeRequest contains the common flow for creating a merge/pull request
 func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error) {
 	// Check if there's already an open request for this issue
-	openRequests, err := params.Provider.GetOpenRequests(params.IssueNumber)
+	var openRequests []RequestResult
+	var err error
+
+	// In cross-repo scenarios (when IssueProvider is set), use branch-based lookup
+	// since the issue doesn't exist in the code repo
+	if params.IssueProvider != nil {
+		logger.Debug("Using branch-based MR lookup for cross-repo scenario", map[string]interface{}{
+			"branch": params.CurrentBranch,
+		})
+		openRequests, err = params.Provider.GetOpenRequestsByBranch(params.CurrentBranch)
+	} else {
+		openRequests, err = params.Provider.GetOpenRequests(params.IssueNumber)
+	}
+
 	if err != nil {
 		logger.Warn("Failed to check for existing requests", map[string]interface{}{
 			"error": err.Error(),
