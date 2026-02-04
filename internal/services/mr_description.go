@@ -9,6 +9,10 @@ type MRDescriptionProvider interface {
 	// GetOpenRequestsForIssue returns the open merge/pull requests for an issue
 	GetOpenRequestsForIssue(issueNumber int) ([]MRDescriptionResult, error)
 
+	// GetOpenRequestsByBranch returns the open merge/pull requests for a specific source branch
+	// This is useful in cross-repo scenarios where the issue doesn't exist in the code repo
+	GetOpenRequestsByBranch(branchName string) ([]MRDescriptionResult, error)
+
 	// GetRequestDiff gets the diff for a merge/pull request
 	GetRequestDiff(requestID int) (string, error)
 
@@ -60,6 +64,26 @@ func GetMRInfo(provider MRDescriptionProvider, issueNumber int) (*MRInfo, error)
 	}, nil
 }
 
+// GetMRInfoByBranch gets information about merge/pull requests for a specific branch
+// This is useful in cross-repo scenarios where the issue doesn't exist in the code repo
+func GetMRInfoByBranch(provider MRDescriptionProvider, branchName string, issueNumber int) (*MRInfo, error) {
+	// Get open MRs for the branch
+	openMRs, err := provider.GetOpenRequestsByBranch(branchName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open requests: %w", err)
+	}
+
+	if len(openMRs) == 0 {
+		return nil, fmt.Errorf("no open requests found for branch '%s', run 'mr' command first", branchName)
+	}
+
+	// Handle multiple MRs case and selection in the calling function
+	// For now, just return the info needed for further processing
+	return &MRInfo{
+		OpenRequests: openMRs,
+	}, nil
+}
+
 // MRInfo holds information about a merge/pull request
 type MRInfo struct {
 	OpenRequests []MRDescriptionResult
@@ -89,6 +113,26 @@ func NewGitLabMRDescriptionProvider(repo string) (*GitLabMRDescriptionProvider, 
 // GetOpenRequestsForIssue returns the open merge requests for an issue
 func (p *GitLabMRDescriptionProvider) GetOpenRequestsForIssue(issueNumber int) ([]MRDescriptionResult, error) {
 	mrs, err := p.project.GetOpenMergeRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]MRDescriptionResult, len(mrs))
+	for i, mr := range mrs {
+		results[i] = MRDescriptionResult{
+			ID:     mr.IID,
+			IID:    mr.IID,
+			Title:  mr.Title,
+			WebURL: mr.WebURL,
+		}
+	}
+
+	return results, nil
+}
+
+// GetOpenRequestsByBranch returns the open merge requests for a specific source branch
+func (p *GitLabMRDescriptionProvider) GetOpenRequestsByBranch(branchName string) ([]MRDescriptionResult, error) {
+	mrs, err := p.project.GetOpenMergeRequestsByBranch(branchName)
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +205,26 @@ func NewGitHubMRDescriptionProvider(repo string) (*GitHubMRDescriptionProvider, 
 // GetOpenRequestsForIssue returns the open pull requests for an issue
 func (p *GitHubMRDescriptionProvider) GetOpenRequestsForIssue(issueNumber int) ([]MRDescriptionResult, error) {
 	prs, err := p.project.GetOpenPullRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]MRDescriptionResult, len(prs))
+	for i, pr := range prs {
+		results[i] = MRDescriptionResult{
+			ID:     pr.Number,
+			IID:    pr.Number, // Use Number for IID in GitHub
+			Title:  pr.Title,
+			WebURL: pr.HTMLURL,
+		}
+	}
+
+	return results, nil
+}
+
+// GetOpenRequestsByBranch returns the open pull requests for a specific head branch
+func (p *GitHubMRDescriptionProvider) GetOpenRequestsByBranch(branchName string) ([]MRDescriptionResult, error) {
+	prs, err := p.project.GetOpenPullRequestsByBranch(branchName)
 	if err != nil {
 		return nil, err
 	}

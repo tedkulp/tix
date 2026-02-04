@@ -27,6 +27,7 @@ type RepoInfo struct {
 	Branch                   string
 	DescriptionProvider      services.MRDescriptionProvider // For MR operations (code repo)
 	IssueDescriptionProvider services.MRDescriptionProvider // For issue operations (may be different repo)
+	IsCrossRepo              bool                           // True if issue repo is different from code repo
 }
 
 // Command flags
@@ -269,6 +270,7 @@ func selectRepository() (*RepoInfo, error) {
 	// Determine issue repo (for cross-repo scenarios)
 	issueRepo := selectedRepo
 	// issueRepoName := selectedRepoName
+	isCrossRepo := false
 
 	if projectName != "" && projectName != selectedRepoName {
 		// Cross-repo: look up issue repo
@@ -277,6 +279,7 @@ func selectRepository() (*RepoInfo, error) {
 			return nil, fmt.Errorf("repository '%s' not found in config", projectName)
 		}
 		issueRepoName := projectName
+		isCrossRepo = true
 
 		// Validate providers match
 		if (selectedRepo.GithubRepo != "" && issueRepo.GitlabRepo != "") ||
@@ -323,13 +326,26 @@ func selectRepository() (*RepoInfo, error) {
 		Branch:                   currentBranch,
 		DescriptionProvider:      descriptionProvider,
 		IssueDescriptionProvider: issueDescriptionProvider,
+		IsCrossRepo:              isCrossRepo,
 	}, nil
 }
 
 // getMergeRequestInfo retrieves information about the merge/pull request
 func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
-	// Get basic MR info (open requests for the issue)
-	mrInfo, err := services.GetMRInfo(repoInfo.DescriptionProvider, repoInfo.IssueNumber)
+	var mrInfo *services.MRInfo
+	var err error
+
+	// In cross-repo scenarios, use branch-based lookup since the issue doesn't exist in the code repo
+	if repoInfo.IsCrossRepo {
+		logger.Debug("Using branch-based MR lookup for cross-repo scenario", map[string]any{
+			"branch": repoInfo.Branch,
+		})
+		mrInfo, err = services.GetMRInfoByBranch(repoInfo.DescriptionProvider, repoInfo.Branch, repoInfo.IssueNumber)
+	} else {
+		// Same-repo scenario: use issue-based lookup
+		mrInfo, err = services.GetMRInfo(repoInfo.DescriptionProvider, repoInfo.IssueNumber)
+	}
+
 	if err != nil {
 		return nil, err
 	}

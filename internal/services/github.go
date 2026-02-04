@@ -140,6 +140,34 @@ func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubP
 	return matchingPRs, nil
 }
 
+// GetOpenPullRequestsByBranch returns all open pull requests for a specific head branch
+func (p *GithubProject) GetOpenPullRequestsByBranch(branchName string) ([]*GithubPullRequest, error) {
+	ctx := context.Background()
+
+	// List PRs filtered by head branch
+	opts := &github.PullRequestListOptions{
+		State: "open",
+		Head:  fmt.Sprintf("%s:%s", p.owner, branchName),
+	}
+
+	prs, _, err := p.client.PullRequests.List(ctx, p.owner, p.repo, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pull requests for branch: %w", err)
+	}
+
+	var matchingPRs []*GithubPullRequest
+	for _, pr := range prs {
+		matchingPRs = append(matchingPRs, &GithubPullRequest{
+			Number:  pr.GetNumber(),
+			Title:   pr.GetTitle(),
+			HTMLURL: pr.GetHTMLURL(),
+			IsDraft: pr.GetDraft(),
+		})
+	}
+
+	return matchingPRs, nil
+}
+
 // CreatePullRequest creates a new pull request in the repository
 func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, issueLabels []string, descriptionOverride string) (*GithubPullRequest, error) {
 	body := descriptionOverride
@@ -352,6 +380,26 @@ func NewGitHubProvider(repo string) (*GitHubProvider, error) {
 // GetOpenRequests returns the open pull requests related to an issue
 func (p *GitHubProvider) GetOpenRequests(issueNumber int) ([]RequestResult, error) {
 	githubPRs, err := p.project.GetOpenPullRequestsForIssue(issueNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]RequestResult, len(githubPRs))
+	for i, pr := range githubPRs {
+		results[i] = RequestResult{
+			ID:      pr.Number,
+			Title:   pr.Title,
+			URL:     pr.HTMLURL,
+			IsDraft: pr.IsDraft,
+		}
+	}
+
+	return results, nil
+}
+
+// GetOpenRequestsByBranch returns the open pull requests for a specific head branch
+func (p *GitHubProvider) GetOpenRequestsByBranch(branchName string) ([]RequestResult, error) {
+	githubPRs, err := p.project.GetOpenPullRequestsByBranch(branchName)
 	if err != nil {
 		return nil, err
 	}
