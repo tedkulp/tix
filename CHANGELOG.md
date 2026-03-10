@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-03-10
+
+### Added
+- `--worktree` / `-w` flag on `tix create` and `tix start` to create a git worktree instead of checking out a branch in the current directory
+- `tix cleanup` command to remove a git worktree (branch is preserved)
+- Worktree path and default branch configurable globally and per-repository via `worktree.path` and `worktree.default_branch`
+
+### Changed
+- Worktree support is now opt-in per invocation rather than a static per-repo config toggle; removed `worktree.enabled` config field
+- `tix mr`, `tix setdesc` now correctly detect the current branch when run from inside a git worktree directory
+
+### Fixed
+- `tix mr` and `tix setdesc` read the main repo HEAD (always `main`) when invoked from a worktree subdirectory; now use `git branch --show-current` from the working directory
+
 ## [0.6.5] - 2026-02-04
 
 ### Fixed
