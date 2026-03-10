@@ -336,8 +336,8 @@ func (p *GitlabProject) GetMergeRequestDiff(mrIID int) (string, error) {
 
 	var diffContent strings.Builder
 	for _, change := range diff.Diffs {
-		diffContent.WriteString(fmt.Sprintf("--- a/%s\n", change.OldPath))
-		diffContent.WriteString(fmt.Sprintf("+++ b/%s\n", change.NewPath))
+		fmt.Fprintf(&diffContent, "--- a/%s\n", change.OldPath)
+		fmt.Fprintf(&diffContent, "+++ b/%s\n", change.NewPath)
 		diffContent.WriteString(change.Diff)
 		diffContent.WriteString("\n")
 	}

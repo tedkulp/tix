@@ -199,9 +199,9 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 	contextBuilder.WriteString("Here are the most relevant code changes:\n\n")
 
 	for i, result := range results {
-		contextBuilder.WriteString(fmt.Sprintf("--- Change %d (similarity: %.3f) ---\n", i+1, result.Similarity))
+		fmt.Fprintf(&contextBuilder, "--- Change %d (similarity: %.3f) ---\n", i+1, result.Similarity)
 		if result.Vector.Chunk.FilePath != "" {
-			contextBuilder.WriteString(fmt.Sprintf("File: %s\n", result.Vector.Chunk.FilePath))
+			fmt.Fprintf(&contextBuilder, "File: %s\n", result.Vector.Chunk.FilePath)
 		}
 		contextBuilder.WriteString(result.Vector.Chunk.Content)
 		contextBuilder.WriteString("\n\n")
@@ -344,9 +344,9 @@ Focus on the business logic changes, the intended behavior, and the motivation f
 	contextBuilder.WriteString("Here are the most relevant code changes:\n\n")
 
 	for i, result := range results {
-		contextBuilder.WriteString(fmt.Sprintf("--- Change %d (similarity: %.3f) ---\n", i+1, result.Similarity))
+		fmt.Fprintf(&contextBuilder, "--- Change %d (similarity: %.3f) ---\n", i+1, result.Similarity)
 		if result.Vector.Chunk.FilePath != "" {
-			contextBuilder.WriteString(fmt.Sprintf("File: %s\n", result.Vector.Chunk.FilePath))
+			fmt.Fprintf(&contextBuilder, "File: %s\n", result.Vector.Chunk.FilePath)
 		}
 		contextBuilder.WriteString(result.Vector.Chunk.Content)
 		contextBuilder.WriteString("\n\n")
