@@ -54,7 +54,7 @@ repositories:
     unready_label: "blocked"
     unready_status: "opened"         # GitLab issue status
     worktree:
-      enabled: true
+      path: ~/.worktrees
       default_branch: main
   - name: issues
     gitlab_repo: group/issues
@@ -81,8 +81,8 @@ repositories:
 - `ready_status`: Repository-specific ready status for GitLab (overrides global)
 - `unready_label`: Repository-specific unready label (overrides global)
 - `unready_status`: Repository-specific unready status for GitLab (overrides global)
-- `worktree.enabled`: Enable Git worktree support
-- `worktree.default_branch`: Default branch for worktrees
+- `worktree.path`: Base directory for worktrees (default: `<repo-dir>/.worktrees`); can be set globally or per-repository
+- `worktree.default_branch`: Default branch to base new worktrees on (default: "main"); can be set globally or per-repository
 
 #### GitLab Status Updates
 When using GitLab repositories, the `ready_status` and `unready_status` configurations allow you to automatically update issue status when marking issues as ready or unready. This uses GitLab's GraphQL API to set the issue state. Standard status values include:
@@ -115,6 +115,10 @@ tix create --self-assign
 
 # Create a ticket in a specific issue repository and branch in a code repository
 tix create issues my-project
+
+# Create a ticket and check out in a git worktree instead of the current directory
+tix create --worktree
+tix create -w
 ```
 
 ### Start a branch from an existing issue
@@ -131,6 +135,19 @@ tix start
 ```
 
 The `start` command creates a new branch based on an existing issue. When the issue is from a different repository than where the branch is created, the branch name will include the project prefix (e.g., `issues-456-feature-name`). This allows merge requests to properly reference issues across repositories.
+
+Both `tix create` and `tix start` accept a `--worktree` / `-w` flag:
+
+- `--worktree, -w`: Create a git worktree at `<worktree.path>/<branch-name>` instead of checking out a branch in the current directory
+
+### Remove a git worktree
+
+```bash
+# Remove the git worktree for the current branch
+tix cleanup
+```
+
+The `cleanup` command removes a git worktree directory, leaving the branch itself intact. It auto-detects the current worktree from the working directory and prompts to confirm the branch name (pre-filled with the detected value) before removing the worktree.
 
 ### Create a merge request/pull request
 
