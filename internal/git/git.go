@@ -5,6 +5,7 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -85,19 +86,29 @@ func (r *Repository) CheckoutBranch(name string) error {
 	return nil
 }
 
-// GetCurrentBranch returns the name of the current branch
+// GetCurrentBranch returns the name of the current branch for the repository's root path.
+// Use GetBranchFromDir to get the branch for a specific directory (e.g. a worktree).
 func (r *Repository) GetCurrentBranch() (string, error) {
-	head, err := r.Head()
+	return GetBranchFromDir(r.path)
+}
+
+// GetBranchFromDir returns the current branch name for the given directory.
+// This works correctly inside git worktrees, unlike go-git's Head() which
+// reads the main worktree's HEAD.
+func GetBranchFromDir(dir string) (string, error) {
+	cmd := exec.Command("git", "branch", "--show-current")
+	cmd.Dir = dir
+	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get HEAD: %w", err)
+		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
 
-	// Check if head is a branch
-	if head.Name().IsBranch() {
-		return head.Name().Short(), nil
+	branch := strings.TrimSpace(string(output))
+	if branch == "" {
+		return "", fmt.Errorf("HEAD is not a branch")
 	}
 
-	return "", fmt.Errorf("HEAD is not a branch")
+	return branch, nil
 }
 
 // Push pushes the current branch to the remote repository

@@ -35,7 +35,7 @@ all: clean build test
 build:
 	@echo "Building $(BINARY_NAME) $(VERSION)..."
 	@mkdir -p $(GOBIN)
-	@go build $(LD_FLAGS) -o $(GOBIN)/$(BINARY_NAME) $(MAIN_PACKAGE)
+	go build $(LD_FLAGS) -o $(GOBIN)/$(BINARY_NAME) $(MAIN_PACKAGE)
 
 clean:
 	@echo "Cleaning..."
@@ -59,8 +59,10 @@ run: build
 	@$(GOBIN)/$(BINARY_NAME)
 
 install: build
-	@echo "Installing $(BINARY_NAME)..."
-	@go install $(LD_FLAGS) $(MAIN_PACKAGE)
+	go env GOBIN
+	go env GOPATH
+	echo "Installing $(BINARY_NAME)..."
+	go install $(LD_FLAGS) $(MAIN_PACKAGE)
 
 lint: install-tools
 	@echo "Linting code..."

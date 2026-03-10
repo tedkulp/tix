@@ -240,14 +240,8 @@ func selectRepository() (*RepoInfo, error) {
 	// Determine if GitLab or GitHub repository
 	isGitlab := selectedRepo.GitlabRepo != ""
 
-	// Open Git repository
-	gitRepo, err := git.Open(selectedRepo.Directory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	// Get current branch
-	currentBranch, err := gitRepo.GetCurrentBranch()
+	// Get current branch from the working directory — handles git worktrees correctly.
+	currentBranch, err := git.GetBranchFromDir(wd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch: %w", err)
 	}

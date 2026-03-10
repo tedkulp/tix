@@ -10,34 +10,62 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Worktree represents worktree configuration
-type Worktree struct {
+// WorktreeConfig represents worktree configuration
+type WorktreeConfig struct {
+	Path          string `yaml:"path" mapstructure:"path"`
 	DefaultBranch string `yaml:"default_branch" mapstructure:"default_branch"`
-	Enabled       bool   `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // Repository represents a single repository configuration
 type Repository struct {
-	Name          string   `yaml:"name" mapstructure:"name"`
-	Directory     string   `yaml:"directory" mapstructure:"directory"`
-	DefaultLabels string   `yaml:"default_labels" mapstructure:"default_labels"`
-	ReadyLabel    string   `yaml:"ready_label" mapstructure:"ready_label"`
-	ReadyStatus   string   `yaml:"ready_status" mapstructure:"ready_status"`
-	UnreadyLabel  string   `yaml:"unready_label" mapstructure:"unready_label"`
-	UnreadyStatus string   `yaml:"unready_status" mapstructure:"unready_status"`
-	GithubRepo    string   `yaml:"github_repo" mapstructure:"github_repo"`
-	GitlabRepo    string   `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
-	DefaultBranch string   `yaml:"default_branch" mapstructure:"default_branch"`
-	Worktree      Worktree `yaml:"worktree,omitempty" mapstructure:"worktree"`
+	Name          string         `yaml:"name" mapstructure:"name"`
+	Directory     string         `yaml:"directory" mapstructure:"directory"`
+	DefaultLabels string         `yaml:"default_labels" mapstructure:"default_labels"`
+	ReadyLabel    string         `yaml:"ready_label" mapstructure:"ready_label"`
+	ReadyStatus   string         `yaml:"ready_status" mapstructure:"ready_status"`
+	UnreadyLabel  string         `yaml:"unready_label" mapstructure:"unready_label"`
+	UnreadyStatus string         `yaml:"unready_status" mapstructure:"unready_status"`
+	GithubRepo    string         `yaml:"github_repo" mapstructure:"github_repo"`
+	GitlabRepo    string         `yaml:"gitlab_repo" mapstructure:"gitlab_repo"`
+	DefaultBranch string         `yaml:"default_branch" mapstructure:"default_branch"`
+	Worktree      WorktreeConfig `yaml:"worktree,omitempty" mapstructure:"worktree"`
 }
 
 // Settings represents the root configuration
 type Settings struct {
-	ReadyLabel    string       `yaml:"ready_label" mapstructure:"ready_label"`
-	ReadyStatus   string       `yaml:"ready_status" mapstructure:"ready_status"`
-	UnreadyLabel  string       `yaml:"unready_label" mapstructure:"unready_label"`
-	UnreadyStatus string       `yaml:"unready_status" mapstructure:"unready_status"`
-	Repositories  []Repository `yaml:"repositories" mapstructure:"repositories"`
+	ReadyLabel    string         `yaml:"ready_label" mapstructure:"ready_label"`
+	ReadyStatus   string         `yaml:"ready_status" mapstructure:"ready_status"`
+	UnreadyLabel  string         `yaml:"unready_label" mapstructure:"unready_label"`
+	UnreadyStatus string         `yaml:"unready_status" mapstructure:"unready_status"`
+	Worktree      WorktreeConfig `yaml:"worktree,omitempty" mapstructure:"worktree"`
+	Repositories  []Repository   `yaml:"repositories" mapstructure:"repositories"`
+}
+
+// ResolveWorktreePath returns the worktree base path for a repo.
+// Resolution order: per-repo > global > default (<repo-dir>/.worktrees)
+func (s *Settings) ResolveWorktreePath(repo *Repository) string {
+	if repo.Worktree.Path != "" {
+		return expandHomeDir(repo.Worktree.Path)
+	}
+	if s.Worktree.Path != "" {
+		return expandHomeDir(s.Worktree.Path)
+	}
+	return filepath.Join(repo.Directory, ".worktrees")
+}
+
+// ResolveDefaultBranch returns the default branch for a repo.
+// Resolution order: per-repo worktree > per-repo default branch > global worktree > "main"
+func (s *Settings) ResolveDefaultBranch(repo *Repository) string {
+	if repo.Worktree.DefaultBranch != "" {
+		return repo.Worktree.DefaultBranch
+	}
+	if repo.DefaultBranch != "" {
+		return repo.DefaultBranch
+	}
+	if s.Worktree.DefaultBranch != "" {
+		return s.Worktree.DefaultBranch
+	}
+	return "main"
 }
 
 // Load reads the configuration from the specified file

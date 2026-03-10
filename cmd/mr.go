@@ -111,8 +111,9 @@ It will extract the issue number from the branch name and create a merge request
 			return fmt.Errorf("couldn't open git repository at %s", matchingRepo.Directory)
 		}
 
-		// Get current branch
-		currentBranch, err := gitRepo.GetCurrentBranch()
+		// Get current branch from the working directory — this correctly handles
+		// git worktrees where the main repo HEAD may differ from the worktree HEAD.
+		currentBranch, err := git.GetBranchFromDir(wd)
 		if err != nil {
 			return fmt.Errorf("failed to determine current git branch")
 		}

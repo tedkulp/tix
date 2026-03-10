@@ -16,6 +16,8 @@ import (
 	"github.com/tedkulp/tix/internal/utils"
 )
 
+var startUseWorktree bool
+
 var startCmd = &cobra.Command{
 	Use:   "start [project] [issue-number]",
 	Short: "Create a branch from an existing issue",
@@ -222,27 +224,31 @@ If the issue is from a different repo, the branch name will include the project 
 			return fmt.Errorf("failed to open git repository at %s: %w", codeRepo.Directory, err)
 		}
 
-		isClean, err := gitRepo.IsClean()
-		if err != nil {
-			return fmt.Errorf("failed to check repository status: %w", err)
-		}
-		if !isClean {
-			return fmt.Errorf("repository is not clean - commit or stash changes first")
+		if !startUseWorktree {
+			isClean, err := gitRepo.IsClean()
+			if err != nil {
+				return fmt.Errorf("failed to check repository status: %w", err)
+			}
+			if !isClean {
+				return fmt.Errorf("repository is not clean - commit or stash changes first")
+			}
 		}
 
 		// Create and checkout branch
-		if codeRepo.Worktree.Enabled {
-			worktreeDir := filepath.Join(codeRepo.Directory, branchName)
+		if startUseWorktree {
+			worktreeBase := cfg.ResolveWorktreePath(codeRepo)
+			worktreeDir := filepath.Join(worktreeBase, branchName)
 			logger.Info("Creating worktree", map[string]interface{}{
 				"branch":    branchName,
 				"directory": worktreeDir,
 			})
 
-			if err := gitRepo.AddWorktree(branchName, worktreeDir); err != nil {
+			defaultBranch := cfg.ResolveDefaultBranch(codeRepo)
+			if err := gitRepo.AddWorktree(worktreeDir, branchName, defaultBranch); err != nil {
 				return fmt.Errorf("failed to create worktree: %w", err)
 			}
 
-			fmt.Printf("Created worktree: %s in %s\n", branchName, worktreeDir)
+			fmt.Printf("Created worktree: %s\n", worktreeDir)
 		} else {
 			logger.Info("Creating and checking out branch", map[string]interface{}{
 				"branch": branchName,
@@ -269,4 +275,5 @@ If the issue is from a different repo, the branch name will include the project 
 
 func init() {
 	rootCmd.AddCommand(startCmd)
+	startCmd.Flags().BoolVarP(&startUseWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
 }

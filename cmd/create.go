@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	title      string
-	selfAssign bool
+	title       string
+	selfAssign  bool
+	useWorktree bool
 )
 
 // RepoSettings represents repository settings and configuration
@@ -58,30 +59,34 @@ Usage:
 			return fmt.Errorf("too many arguments. Usage: tix create [issue-repo] [code-repo]")
 		}
 
-		// Setup repository and configuration
-		repoSettings, err := setupRepository(issueRepoArg, codeRepoArg)
+		cfg, err := config.Load()
 		if err != nil {
-			// Provide cleaner error messages for common setup issues
-			if strings.Contains(err.Error(), "failed to load config") {
+			if strings.Contains(err.Error(), "failed to load config") || strings.Contains(err.Error(), "failed to read config") {
 				return fmt.Errorf("couldn't load configuration file. Run with --verbose for details")
-			}
-			if strings.Contains(err.Error(), "no repositories configured") {
-				return fmt.Errorf("no repositories configured - add repositories to your config file")
 			}
 			return err
 		}
 
-		// Open Git repository and validate it's clean BEFORE any user interaction
-		gitRepo, err := openAndValidateRepo(repoSettings.Directory)
+		// Setup repository and configuration
+		repoSettings, err := setupRepository(cfg, issueRepoArg, codeRepoArg)
 		if err != nil {
-			// Handle common git repository errors
-			if strings.Contains(err.Error(), "repository is not clean") {
+			return err
+		}
+
+		// Open Git repository BEFORE any user interaction
+		gitRepo, err := git.Open(repoSettings.Directory)
+		if err != nil {
+			return fmt.Errorf("couldn't open git repository at %s", repoSettings.Directory)
+		}
+
+		if !useWorktree {
+			isClean, err := gitRepo.IsClean()
+			if err != nil {
+				return fmt.Errorf("failed to check repository status: %w", err)
+			}
+			if !isClean {
 				return fmt.Errorf("git repository has uncommitted changes - commit or stash them first")
 			}
-			if strings.Contains(err.Error(), "failed to open repository") {
-				return fmt.Errorf("couldn't open git repository at %s", repoSettings.Directory)
-			}
-			return err
 		}
 
 		// Prompt for and validate title if not provided
@@ -126,15 +131,12 @@ Usage:
 		if repoSettings.Name != repoSettings.CodeRepoName {
 			projectPrefix = repoSettings.Name
 		}
-		if err := createBranch(gitRepo, repoSettings.CodeRepo, issueResult.Number, issueResult.Title, projectPrefix); err != nil {
+		if err := createBranch(gitRepo, repoSettings.CodeRepo, cfg, issueResult.Number, issueResult.Title, projectPrefix, useWorktree); err != nil {
 			if strings.Contains(err.Error(), "failed to create branch") {
 				return fmt.Errorf("branch creation failed - the issue was created but the branch couldn't be created")
 			}
 			if strings.Contains(err.Error(), "failed to checkout branch") {
 				return fmt.Errorf("branch creation succeeded but checkout failed")
-			}
-			if strings.Contains(err.Error(), "failed to create worktree") {
-				return fmt.Errorf("worktree creation failed - check directory permissions")
 			}
 			return err
 		}
@@ -145,12 +147,7 @@ Usage:
 }
 
 // setupRepository handles repository selection and configuration
-func setupRepository(issueRepoArg, codeRepoArg string) (*RepoSettings, error) {
-	cfg, err := config.Load()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
+func setupRepository(cfg *config.Settings, issueRepoArg, codeRepoArg string) (*RepoSettings, error) {
 	logger.Debug("Config loaded successfully", map[string]interface{}{
 		"repos_count": len(cfg.GetRepoNames()),
 	})
@@ -340,31 +337,6 @@ func setupRepository(issueRepoArg, codeRepoArg string) (*RepoSettings, error) {
 	}, nil
 }
 
-// openAndValidateRepo opens the Git repository and validates it's clean
-func openAndValidateRepo(directory string) (*git.Repository, error) {
-	logger.Debug("Opening git repository", map[string]interface{}{
-		"directory": directory,
-	})
-
-	// Open Git repository
-	gitRepo, err := git.Open(directory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
-	}
-
-	// Check if repository is clean
-	isClean, err := gitRepo.IsClean()
-	if err != nil {
-		return nil, fmt.Errorf("failed to check repository status: %w", err)
-	}
-	if !isClean {
-		return nil, fmt.Errorf("repository is not clean")
-	}
-
-	logger.Debug("Repository is clean")
-	return gitRepo, nil
-}
-
 // promptForTitle prompts the user for a title for the issue
 func promptForTitle() (string, error) {
 	result, err := pterm.DefaultInteractiveTextInput.
@@ -457,7 +429,7 @@ func createIssue(settings *RepoSettings) (*services.IssueResult, error) {
 }
 
 // createBranch creates and checks out a new branch
-func createBranch(gitRepo *git.Repository, repo *config.Repository, issueNumber int, issueTitle string, projectPrefix string) error {
+func createBranch(gitRepo *git.Repository, repo *config.Repository, cfg *config.Settings, issueNumber int, issueTitle string, projectPrefix string, useWorktree bool) error {
 	// Create branch name
 	var branchName string
 	if projectPrefix != "" {
@@ -469,20 +441,20 @@ func createBranch(gitRepo *git.Repository, repo *config.Repository, issueNumber 
 		"branch": branchName,
 	})
 
-	// Create and checkout branch
-	if repo.Worktree.Enabled {
-		// Get the worktree directory
-		worktreeDir := filepath.Join(repo.Directory, branchName)
+	if useWorktree {
+		worktreeBase := cfg.ResolveWorktreePath(repo)
+		worktreeDir := filepath.Join(worktreeBase, branchName)
 		logger.Info("Creating worktree", map[string]interface{}{
 			"branch":    branchName,
 			"directory": worktreeDir,
 		})
 
-		if err := gitRepo.AddWorktree(branchName, worktreeDir); err != nil {
+		defaultBranch := cfg.ResolveDefaultBranch(repo)
+		if err := gitRepo.AddWorktree(worktreeDir, branchName, defaultBranch); err != nil {
 			return fmt.Errorf("failed to create worktree: %w", err)
 		}
 
-		fmt.Printf("Created worktree: %s in %s\n", branchName, worktreeDir)
+		fmt.Printf("Created worktree: %s\n", worktreeDir)
 	} else {
 		logger.Info("Creating and checking out branch", map[string]interface{}{
 			"branch": branchName,
@@ -507,4 +479,5 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 	createCmd.Flags().StringVarP(&title, "title", "t", "", "Title of the issue")
 	createCmd.Flags().BoolVarP(&selfAssign, "assign", "a", true, "Assign the issue to yourself")
+	createCmd.Flags().BoolVarP(&useWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
 }
