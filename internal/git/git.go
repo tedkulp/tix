@@ -86,12 +86,6 @@ func (r *Repository) CheckoutBranch(name string) error {
 	return nil
 }
 
-// GetCurrentBranch returns the name of the current branch for the repository's root path.
-// Use GetBranchFromDir to get the branch for a specific directory (e.g. a worktree).
-func (r *Repository) GetCurrentBranch() (string, error) {
-	return GetBranchFromDir(r.path)
-}
-
 // GetBranchFromDir returns the current branch name for the given directory.
 // This works correctly inside git worktrees, unlike go-git's Head() which
 // reads the main worktree's HEAD.
