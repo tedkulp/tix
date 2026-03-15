@@ -114,14 +114,9 @@ func SelectSharedRepository() (*SharedRepoInfo, error) {
 		"repo": selectedRepoName,
 	})
 
-	// Open Git repository
-	gitRepo, err := git.Open(selectedRepo.Directory)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open git repository at %s", selectedRepo.Directory)
-	}
-
-	// Get current branch
-	currentBranch, err := gitRepo.GetCurrentBranch()
+	// Get current branch from the working directory — this correctly handles
+	// git worktrees where the main repo HEAD may differ from the worktree HEAD.
+	currentBranch, err := git.GetBranchFromDir(wd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get current branch")
 	}
