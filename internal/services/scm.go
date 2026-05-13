@@ -153,7 +153,7 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 	}
 
 	// Create request title with issue number and full title
-	requestTitle := fmt.Sprintf("#%d - %s", params.IssueNumber, issue.Title)
+	requestTitle := fmt.Sprintf("#%d: %s", params.IssueNumber, issue.Title)
 
 	logger.Info("Creating request with issue metadata", map[string]interface{}{
 		"issue_title":     issue.Title,
