@@ -104,6 +104,7 @@ from the current working directory.`,
 			}
 		} else {
 			// If not inside a worktree and no arg given, show list selector
+			selectedFromList := false
 			if detectedBranch == "" && len(args) == 0 {
 				worktreeBranches, err := listWorktreeBranches(worktreeBase)
 				if err != nil {
@@ -120,19 +121,24 @@ from the current working directory.`,
 					return fmt.Errorf("cleanup cancelled")
 				}
 				detectedBranch = selected
+				selectedFromList = true
 			} else if len(args) > 0 {
 				detectedBranch = args[0]
 			}
 
-			// Prompt with detected branch as default
-			branchName, err = pterm.DefaultInteractiveTextInput.
-				WithDefaultText("Worktree branch to remove").
-				WithDefaultValue(detectedBranch).
-				Show()
-			if err != nil || strings.TrimSpace(branchName) == "" {
-				return fmt.Errorf("cleanup cancelled")
+			if selectedFromList {
+				branchName = detectedBranch
+			} else {
+				// Prompt with detected branch as default
+				branchName, err = pterm.DefaultInteractiveTextInput.
+					WithDefaultText("Worktree branch to remove").
+					WithDefaultValue(detectedBranch).
+					Show()
+				if err != nil || strings.TrimSpace(branchName) == "" {
+					return fmt.Errorf("cleanup cancelled")
+				}
+				branchName = strings.TrimSpace(branchName)
 			}
-			branchName = strings.TrimSpace(branchName)
 		}
 
 		worktreeDir := filepath.Join(worktreeBase, branchName)
@@ -148,7 +154,17 @@ from the current working directory.`,
 		}
 
 		if err := gitRepo.RemoveWorktree(worktreeDir); err != nil {
-			return fmt.Errorf("failed to remove worktree: %w", err)
+			fmt.Printf("Error: %v\n", err)
+			forceIt, promptErr := pterm.DefaultInteractiveConfirm.
+				WithDefaultText("Retry with --force?").
+				WithDefaultValue(false).
+				Show()
+			if promptErr != nil || !forceIt {
+				return fmt.Errorf("cleanup cancelled")
+			}
+			if err := gitRepo.RemoveWorktreeForce(worktreeDir); err != nil {
+				return fmt.Errorf("failed to force-remove worktree: %w", err)
+			}
 		}
 
 		fmt.Printf("Removed worktree: %s\n", worktreeDir)

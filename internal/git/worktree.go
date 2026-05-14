@@ -29,3 +29,15 @@ func (r *Repository) RemoveWorktree(worktreePath string) error {
 	}
 	return nil
 }
+
+// RemoveWorktreeForce force-removes the git worktree at worktreePath.
+// Runs: git worktree remove --force <worktreePath>
+func (r *Repository) RemoveWorktreeForce(worktreePath string) error {
+	cmd := exec.Command("git", "worktree", "remove", "--force", worktreePath)
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to force-remove worktree: %s: %w", string(output), err)
+	}
+	return nil
+}
