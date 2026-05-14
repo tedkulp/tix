@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-05-14
+
+### Added
+- `tix cleanup` now shows an interactive worktree list when run from a repo's main directory (not inside a worktree)
+- On removal failure, prompt to retry with `--force` rather than hard-failing
+- `--force` / `-f` flag now skips the text confirmation prompt entirely
+
+### Fixed
+- `tix cleanup` no longer shows worktrees from the wrong project when run from a repo's root directory
+- Skip redundant branch name text prompt after selecting from the interactive list
+
 ## [0.7.1] - 2026-03-15
 
 ### Fixed
@@ -176,7 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 - Makefile for common development tasks
 
-[Unreleased]: https://github.com/tedkulp/tix/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/tedkulp/tix/compare/v0.7.2...HEAD
+[0.7.2]: https://github.com/tedkulp/tix/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/tedkulp/tix/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/tedkulp/tix/compare/v0.6.5...v0.7.0
 [0.6.5]: https://github.com/tedkulp/tix/compare/v0.6.4...v0.6.5
