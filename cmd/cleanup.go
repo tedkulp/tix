@@ -13,10 +13,17 @@ import (
 	"github.com/tedkulp/tix/internal/logger"
 )
 
+var cleanupForce bool
+
 var cleanupCmd = &cobra.Command{
-	Use:   "cleanup",
+	Use:   "cleanup [branch]",
 	Short: "Remove a git worktree",
-	Long:  `Remove a git worktree directory. The branch is left intact.`,
+	Long: `Remove a git worktree directory. The branch is left intact.
+
+When --force is provided, skips the interactive prompt and removes
+the worktree directly. If a branch name is given as an argument,
+that branch's worktree is removed. Otherwise, the branch is auto-detected
+from the current working directory.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -63,15 +70,29 @@ var cleanupCmd = &cobra.Command{
 			return fmt.Errorf("no code repositories configured")
 		}
 
-		// Prompt with detected branch as default
-		branchName, err := pterm.DefaultInteractiveTextInput.
-			WithDefaultText("Worktree branch to remove").
-			WithDefaultValue(detectedBranch).
-			Show()
-		if err != nil || strings.TrimSpace(branchName) == "" {
-			return fmt.Errorf("cleanup cancelled")
+		// Determine the branch name
+		var branchName string
+
+		if cleanupForce {
+			// Non-interactive mode: use arg or detected branch
+			if len(args) > 0 {
+				branchName = args[0]
+			} else if detectedBranch != "" {
+				branchName = detectedBranch
+			} else {
+				return fmt.Errorf("no branch specified and no worktree detected in current directory (use: tix cleanup --force <branch-name>)")
+			}
+		} else {
+			// Interactive prompt with detected branch as default
+			branchName, err = pterm.DefaultInteractiveTextInput.
+				WithDefaultText("Worktree branch to remove").
+				WithDefaultValue(detectedBranch).
+				Show()
+			if err != nil || strings.TrimSpace(branchName) == "" {
+				return fmt.Errorf("cleanup cancelled")
+			}
+			branchName = strings.TrimSpace(branchName)
 		}
-		branchName = strings.TrimSpace(branchName)
 
 		worktreeDir := filepath.Join(worktreeBase, branchName)
 
@@ -124,4 +145,5 @@ func detectWorktreeBranch(cwd, worktreePath string) string {
 
 func init() {
 	rootCmd.AddCommand(cleanupCmd)
+	cleanupCmd.Flags().BoolVarP(&cleanupForce, "force", "f", false, "Skip confirmation prompt and remove directly")
 }
