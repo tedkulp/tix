@@ -49,7 +49,26 @@ var cleanupCmd = &cobra.Command{
 			}
 		}
 
-		// If we couldn't detect from cwd, pick first code repo
+		// If we couldn't detect from cwd, try to match by repo directory
+		if codeRepo == nil {
+			for i := range cfg.Repositories {
+				repo := &cfg.Repositories[i]
+				if !repo.IsCodeRepo() {
+					continue
+				}
+				repoDir := repo.Directory
+				if !strings.HasSuffix(repoDir, string(filepath.Separator)) {
+					repoDir += string(filepath.Separator)
+				}
+				if wd == repo.Directory || strings.HasPrefix(wd, repoDir) {
+					codeRepo = repo
+					worktreeBase = cfg.ResolveWorktreePath(repo)
+					break
+				}
+			}
+		}
+
+		// Last resort: pick first code repo
 		if codeRepo == nil {
 			for i := range cfg.Repositories {
 				if cfg.Repositories[i].IsCodeRepo() {
