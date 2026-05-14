@@ -1,6 +1,9 @@
 package cmd
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -48,8 +51,81 @@ func TestDetectWorktreeBranch(t *testing.T) {
 	}
 }
 
+func TestListWorktreeBranches(t *testing.T) {
+	t.Run("lists directories in worktree base", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		if err := os.MkdirAll(filepath.Join(tmpDir, "123-feature-a"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(tmpDir, "456-feature-b"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(tmpDir, "789-feature-c"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Join(tmpDir, ".hidden"), 0755); err != nil {
+			t.Fatal(err)
+		}
+		f, err := os.Create(filepath.Join(tmpDir, "not-a-dir"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+
+		got, err := listWorktreeBranches(tmpDir)
+		if err != nil {
+			t.Fatalf("listWorktreeBranches() error: %v", err)
+		}
+
+		want := []string{"123-feature-a", "456-feature-b", "789-feature-c"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listWorktreeBranches() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("returns empty slice when no worktrees exist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		got, err := listWorktreeBranches(tmpDir)
+		if err != nil {
+			t.Fatalf("listWorktreeBranches() error: %v", err)
+		}
+
+		if len(got) != 0 {
+			t.Errorf("listWorktreeBranches() = %v, want empty slice", got)
+		}
+	})
+
+	t.Run("returns error for nonexistent directory", func(t *testing.T) {
+		_, err := listWorktreeBranches("/nonexistent/path")
+		if err == nil {
+			t.Error("listWorktreeBranches() expected error for nonexistent path")
+		}
+	})
+
+	t.Run("returns sorted branches regardless of creation order", func(t *testing.T) {
+		tmpDir := t.TempDir()
+
+		for _, name := range []string{"z-feature", "m-feature", "a-feature"} {
+			if err := os.MkdirAll(filepath.Join(tmpDir, name), 0755); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		got, err := listWorktreeBranches(tmpDir)
+		if err != nil {
+			t.Fatalf("listWorktreeBranches() error: %v", err)
+		}
+
+		want := []string{"a-feature", "m-feature", "z-feature"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("listWorktreeBranches() = %v, want alphabetically sorted %v", got, want)
+		}
+	})
+}
+
 func TestCleanupForceFlag(t *testing.T) {
-	// Verify the --force flag is registered on the cleanup command
 	flag := cleanupCmd.Flags().Lookup("force")
 	if flag == nil {
 		t.Fatal("expected --force flag to be registered on cleanupCmd")
@@ -69,14 +145,12 @@ func TestCleanupForceFlag(t *testing.T) {
 }
 
 func TestCleanupUseString(t *testing.T) {
-	// Verify the Use string includes "[branch]" for the optional arg
 	if cleanupCmd.Use != "cleanup [branch]" {
 		t.Errorf("expected Use 'cleanup [branch]', got %q", cleanupCmd.Use)
 	}
 }
 
 func TestCleanupLongDescription(t *testing.T) {
-	// Verify the Long description mentions --force behavior
 	if !strings.Contains(cleanupCmd.Long, "--force") {
 		t.Error("expected Long description to mention --force")
 	}

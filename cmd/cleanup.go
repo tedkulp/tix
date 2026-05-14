@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -55,7 +56,26 @@ from the current working directory.`,
 			}
 		}
 
-		// If we couldn't detect from cwd, pick first code repo
+		// If we couldn't detect from cwd, try to match by repo directory
+		if codeRepo == nil {
+			for i := range cfg.Repositories {
+				repo := &cfg.Repositories[i]
+				if !repo.IsCodeRepo() {
+					continue
+				}
+				repoDir := repo.Directory
+				if !strings.HasSuffix(repoDir, string(filepath.Separator)) {
+					repoDir += string(filepath.Separator)
+				}
+				if wd == repo.Directory || strings.HasPrefix(wd, repoDir) {
+					codeRepo = repo
+					worktreeBase = cfg.ResolveWorktreePath(repo)
+					break
+				}
+			}
+		}
+
+		// Last resort: pick first code repo
 		if codeRepo == nil {
 			for i := range cfg.Repositories {
 				if cfg.Repositories[i].IsCodeRepo() {
@@ -74,7 +94,7 @@ from the current working directory.`,
 		var branchName string
 
 		if cleanupForce {
-			// Non-interactive mode: use arg or detected branch
+			// Non-interactive: use arg or detected branch
 			if len(args) > 0 {
 				branchName = args[0]
 			} else if detectedBranch != "" {
@@ -83,15 +103,42 @@ from the current working directory.`,
 				return fmt.Errorf("no branch specified and no worktree detected in current directory (use: tix cleanup --force <branch-name>)")
 			}
 		} else {
-			// Interactive prompt with detected branch as default
-			branchName, err = pterm.DefaultInteractiveTextInput.
-				WithDefaultText("Worktree branch to remove").
-				WithDefaultValue(detectedBranch).
-				Show()
-			if err != nil || strings.TrimSpace(branchName) == "" {
-				return fmt.Errorf("cleanup cancelled")
+			// If not inside a worktree and no arg given, show list selector
+			selectedFromList := false
+			if detectedBranch == "" && len(args) == 0 {
+				worktreeBranches, err := listWorktreeBranches(worktreeBase)
+				if err != nil {
+					return fmt.Errorf("failed to list worktrees: %w", err)
+				}
+				if len(worktreeBranches) == 0 {
+					return fmt.Errorf("no worktrees found in %s", worktreeBase)
+				}
+				selected, err := pterm.DefaultInteractiveSelect.
+					WithOptions(worktreeBranches).
+					WithDefaultText("Select a worktree branch to remove").
+					Show()
+				if err != nil {
+					return fmt.Errorf("cleanup cancelled")
+				}
+				detectedBranch = selected
+				selectedFromList = true
+			} else if len(args) > 0 {
+				detectedBranch = args[0]
 			}
-			branchName = strings.TrimSpace(branchName)
+
+			if selectedFromList {
+				branchName = detectedBranch
+			} else {
+				// Prompt with detected branch as default
+				branchName, err = pterm.DefaultInteractiveTextInput.
+					WithDefaultText("Worktree branch to remove").
+					WithDefaultValue(detectedBranch).
+					Show()
+				if err != nil || strings.TrimSpace(branchName) == "" {
+					return fmt.Errorf("cleanup cancelled")
+				}
+				branchName = strings.TrimSpace(branchName)
+			}
 		}
 
 		worktreeDir := filepath.Join(worktreeBase, branchName)
@@ -107,7 +154,17 @@ from the current working directory.`,
 		}
 
 		if err := gitRepo.RemoveWorktree(worktreeDir); err != nil {
-			return fmt.Errorf("failed to remove worktree: %w", err)
+			fmt.Printf("Error: %v\n", err)
+			forceIt, promptErr := pterm.DefaultInteractiveConfirm.
+				WithDefaultText("Retry with --force?").
+				WithDefaultValue(false).
+				Show()
+			if promptErr != nil || !forceIt {
+				return fmt.Errorf("cleanup cancelled")
+			}
+			if err := gitRepo.RemoveWorktreeForce(worktreeDir); err != nil {
+				return fmt.Errorf("failed to force-remove worktree: %w", err)
+			}
 		}
 
 		fmt.Printf("Removed worktree: %s\n", worktreeDir)
@@ -141,6 +198,26 @@ func detectWorktreeBranch(cwd, worktreePath string) string {
 		return ""
 	}
 	return parts[0]
+}
+
+// listWorktreeBranches returns the names of subdirectories (worktree branches)
+// in the given worktree base path, sorted alphabetically. Hidden directories
+// (starting with '.') are excluded.
+func listWorktreeBranches(worktreeBase string) ([]string, error) {
+	entries, err := os.ReadDir(worktreeBase)
+	if err != nil {
+		return nil, err
+	}
+
+	var branches []string
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+			branches = append(branches, entry.Name())
+		}
+	}
+
+	sort.Strings(branches)
+	return branches, nil
 }
 
 func init() {
