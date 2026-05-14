@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -63,6 +64,28 @@ var cleanupCmd = &cobra.Command{
 			return fmt.Errorf("no code repositories configured")
 		}
 
+		// If not inside a workspace, list worktrees and let the user select one
+		if detectedBranch == "" {
+			worktreeBranches, err := listWorktreeBranches(worktreeBase)
+			if err != nil {
+				return fmt.Errorf("failed to list worktrees: %w", err)
+			}
+
+			if len(worktreeBranches) == 0 {
+				return fmt.Errorf("no worktrees found in %s", worktreeBase)
+			}
+
+			selected, err := pterm.DefaultInteractiveSelect.
+				WithOptions(worktreeBranches).
+				WithDefaultText("Select a worktree branch to remove").
+				Show()
+			if err != nil {
+				return fmt.Errorf("cleanup cancelled")
+			}
+
+			detectedBranch = selected
+		}
+
 		// Prompt with detected branch as default
 		branchName, err := pterm.DefaultInteractiveTextInput.
 			WithDefaultText("Worktree branch to remove").
@@ -120,6 +143,26 @@ func detectWorktreeBranch(cwd, worktreePath string) string {
 		return ""
 	}
 	return parts[0]
+}
+
+// listWorktreeBranches returns the names of subdirectories (worktree branches)
+// in the given worktree base path, sorted alphabetically. Hidden directories
+// (starting with '.') are excluded.
+func listWorktreeBranches(worktreeBase string) ([]string, error) {
+	entries, err := os.ReadDir(worktreeBase)
+	if err != nil {
+		return nil, err
+	}
+
+	var branches []string
+	for _, entry := range entries {
+		if entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
+			branches = append(branches, entry.Name())
+		}
+	}
+
+	sort.Strings(branches)
+	return branches, nil
 }
 
 func init() {
