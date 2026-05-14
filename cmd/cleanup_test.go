@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -54,7 +55,6 @@ func TestListWorktreeBranches(t *testing.T) {
 	t.Run("lists directories in worktree base", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Create some worktree directories
 		if err := os.MkdirAll(filepath.Join(tmpDir, "123-feature-a"), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -64,11 +64,9 @@ func TestListWorktreeBranches(t *testing.T) {
 		if err := os.MkdirAll(filepath.Join(tmpDir, "789-feature-c"), 0755); err != nil {
 			t.Fatal(err)
 		}
-		// Hidden directory should be excluded
 		if err := os.MkdirAll(filepath.Join(tmpDir, ".hidden"), 0755); err != nil {
 			t.Fatal(err)
 		}
-		// Regular file should be excluded
 		f, err := os.Create(filepath.Join(tmpDir, "not-a-dir"))
 		if err != nil {
 			t.Fatal(err)
@@ -109,7 +107,6 @@ func TestListWorktreeBranches(t *testing.T) {
 	t.Run("returns sorted branches regardless of creation order", func(t *testing.T) {
 		tmpDir := t.TempDir()
 
-		// Create directories in reverse alphabetical order
 		for _, name := range []string{"z-feature", "m-feature", "a-feature"} {
 			if err := os.MkdirAll(filepath.Join(tmpDir, name), 0755); err != nil {
 				t.Fatal(err)
@@ -126,4 +123,38 @@ func TestListWorktreeBranches(t *testing.T) {
 			t.Errorf("listWorktreeBranches() = %v, want alphabetically sorted %v", got, want)
 		}
 	})
+}
+
+func TestCleanupForceFlag(t *testing.T) {
+	flag := cleanupCmd.Flags().Lookup("force")
+	if flag == nil {
+		t.Fatal("expected --force flag to be registered on cleanupCmd")
+	}
+
+	if flag.Shorthand != "f" {
+		t.Errorf("expected shorthand 'f', got %q", flag.Shorthand)
+	}
+
+	if flag.DefValue != "false" {
+		t.Errorf("expected default 'false', got %q", flag.DefValue)
+	}
+
+	if flag.Usage == "" {
+		t.Error("expected --force flag to have a usage description")
+	}
+}
+
+func TestCleanupUseString(t *testing.T) {
+	if cleanupCmd.Use != "cleanup [branch]" {
+		t.Errorf("expected Use 'cleanup [branch]', got %q", cleanupCmd.Use)
+	}
+}
+
+func TestCleanupLongDescription(t *testing.T) {
+	if !strings.Contains(cleanupCmd.Long, "--force") {
+		t.Error("expected Long description to mention --force")
+	}
+	if !strings.Contains(cleanupCmd.Long, "auto-detected") {
+		t.Error("expected Long description to mention auto-detection")
+	}
 }

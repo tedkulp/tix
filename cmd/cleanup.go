@@ -14,10 +14,17 @@ import (
 	"github.com/tedkulp/tix/internal/logger"
 )
 
+var cleanupForce bool
+
 var cleanupCmd = &cobra.Command{
-	Use:   "cleanup",
+	Use:   "cleanup [branch]",
 	Short: "Remove a git worktree",
-	Long:  `Remove a git worktree directory. The branch is left intact.`,
+	Long: `Remove a git worktree directory. The branch is left intact.
+
+When --force is provided, skips the interactive prompt and removes
+the worktree directly. If a branch name is given as an argument,
+that branch's worktree is removed. Otherwise, the branch is auto-detected
+from the current working directory.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
 		if err != nil {
@@ -83,37 +90,50 @@ var cleanupCmd = &cobra.Command{
 			return fmt.Errorf("no code repositories configured")
 		}
 
-		// If not inside a workspace, list worktrees and let the user select one
-		if detectedBranch == "" {
-			worktreeBranches, err := listWorktreeBranches(worktreeBase)
-			if err != nil {
-				return fmt.Errorf("failed to list worktrees: %w", err)
+		// Determine the branch name
+		var branchName string
+
+		if cleanupForce {
+			// Non-interactive: use arg or detected branch
+			if len(args) > 0 {
+				branchName = args[0]
+			} else if detectedBranch != "" {
+				branchName = detectedBranch
+			} else {
+				return fmt.Errorf("no branch specified and no worktree detected in current directory (use: tix cleanup --force <branch-name>)")
+			}
+		} else {
+			// If not inside a worktree and no arg given, show list selector
+			if detectedBranch == "" && len(args) == 0 {
+				worktreeBranches, err := listWorktreeBranches(worktreeBase)
+				if err != nil {
+					return fmt.Errorf("failed to list worktrees: %w", err)
+				}
+				if len(worktreeBranches) == 0 {
+					return fmt.Errorf("no worktrees found in %s", worktreeBase)
+				}
+				selected, err := pterm.DefaultInteractiveSelect.
+					WithOptions(worktreeBranches).
+					WithDefaultText("Select a worktree branch to remove").
+					Show()
+				if err != nil {
+					return fmt.Errorf("cleanup cancelled")
+				}
+				detectedBranch = selected
+			} else if len(args) > 0 {
+				detectedBranch = args[0]
 			}
 
-			if len(worktreeBranches) == 0 {
-				return fmt.Errorf("no worktrees found in %s", worktreeBase)
-			}
-
-			selected, err := pterm.DefaultInteractiveSelect.
-				WithOptions(worktreeBranches).
-				WithDefaultText("Select a worktree branch to remove").
+			// Prompt with detected branch as default
+			branchName, err = pterm.DefaultInteractiveTextInput.
+				WithDefaultText("Worktree branch to remove").
+				WithDefaultValue(detectedBranch).
 				Show()
-			if err != nil {
+			if err != nil || strings.TrimSpace(branchName) == "" {
 				return fmt.Errorf("cleanup cancelled")
 			}
-
-			detectedBranch = selected
+			branchName = strings.TrimSpace(branchName)
 		}
-
-		// Prompt with detected branch as default
-		branchName, err := pterm.DefaultInteractiveTextInput.
-			WithDefaultText("Worktree branch to remove").
-			WithDefaultValue(detectedBranch).
-			Show()
-		if err != nil || strings.TrimSpace(branchName) == "" {
-			return fmt.Errorf("cleanup cancelled")
-		}
-		branchName = strings.TrimSpace(branchName)
 
 		worktreeDir := filepath.Join(worktreeBase, branchName)
 
@@ -186,4 +206,5 @@ func listWorktreeBranches(worktreeBase string) ([]string, error) {
 
 func init() {
 	rootCmd.AddCommand(cleanupCmd)
+	cleanupCmd.Flags().BoolVarP(&cleanupForce, "force", "f", false, "Skip confirmation prompt and remove directly")
 }
