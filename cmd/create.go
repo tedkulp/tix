@@ -342,17 +342,25 @@ func setupRepository(cfg *config.Settings, issueRepoArg, codeRepoArg string) (*R
 			return nil, fmt.Errorf("no code repositories configured (repos with 'directory' field)")
 		}
 
-		selectedCodeName, err := pterm.DefaultInteractiveSelect.
-			WithOptions(codeRepoNames).
-			WithDefaultText("Select a code repository for the branch").
-			WithDefaultOption(repoName).
-			Show()
-		if err != nil {
-			return nil, fmt.Errorf("code repository selection cancelled")
-		}
+		if nonInteractive {
+			if len(codeRepoNames) > 1 {
+				return nil, fmt.Errorf("--non-interactive requires an unambiguous repository; pass the code repo name as an argument or cd into a configured directory")
+			}
+			codeRepo = cfg.GetRepo(codeRepoNames[0])
+			codeRepoName = codeRepoNames[0]
+		} else {
+			selectedCodeName, err := pterm.DefaultInteractiveSelect.
+				WithOptions(codeRepoNames).
+				WithDefaultText("Select a code repository for the branch").
+				WithDefaultOption(repoName).
+				Show()
+			if err != nil {
+				return nil, fmt.Errorf("code repository selection cancelled")
+			}
 
-		codeRepo = cfg.GetRepo(selectedCodeName)
-		codeRepoName = selectedCodeName
+			codeRepo = cfg.GetRepo(selectedCodeName)
+			codeRepoName = selectedCodeName
+		}
 
 		// Validate providers match
 		if (selectedRepo.GithubRepo != "" && codeRepo.GitlabRepo != "") ||
