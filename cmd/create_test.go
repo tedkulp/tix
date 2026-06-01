@@ -3,6 +3,8 @@ package cmd
 import (
 	"strings"
 	"testing"
+
+	"github.com/tedkulp/tix/internal/config"
 )
 
 func TestCreateNoAutoStashFlag(t *testing.T) {
@@ -49,6 +51,30 @@ func TestCreateNonInteractiveRequiresTitle(t *testing.T) {
 		t.Fatal("expected error when --non-interactive is set without --title")
 	}
 	if !strings.Contains(err.Error(), "--non-interactive requires -t/--title") {
+		t.Errorf("unexpected error: %s", err.Error())
+	}
+}
+
+func TestCreateNonInteractiveAmbiguousRepo(t *testing.T) {
+	// setupRepository errors when nonInteractive=true, no issueRepoArg, no cwd match,
+	// and multiple repos exist. We test the helper directly.
+	// Build a minimal config with two repos that don't match cwd.
+	cfg := &config.Settings{
+		Repositories: []config.Repository{
+			{GithubRepo: "owner/repo-a", Directory: "/tmp/nonexistent-a"},
+			{GithubRepo: "owner/repo-b", Directory: "/tmp/nonexistent-b"},
+		},
+	}
+
+	orig := nonInteractive
+	defer func() { nonInteractive = orig }()
+	nonInteractive = true
+
+	_, err := setupRepository(cfg, "", "")
+	if err == nil {
+		t.Fatal("expected error for ambiguous repo in non-interactive mode")
+	}
+	if !strings.Contains(err.Error(), "--non-interactive requires an unambiguous repository") {
 		t.Errorf("unexpected error: %s", err.Error())
 	}
 }
