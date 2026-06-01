@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	startUseWorktree bool
-	startNoAutoStash bool
+	startUseWorktree    bool
+	startNoAutoStash    bool
+	startNonInteractive bool
 )
 
 var startCmd = &cobra.Command{
@@ -34,6 +35,10 @@ Usage:
 
 If the issue is from a different repo, the branch name will include the project prefix.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if startNonInteractive && len(args) == 0 {
+			return fmt.Errorf("--non-interactive requires an issue number argument")
+		}
+
 		logger.Debug("Starting start command")
 
 		cfg, err := config.Load()
@@ -292,4 +297,5 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().BoolVarP(&startUseWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
 	startCmd.Flags().BoolVar(&startNoAutoStash, "no-auto-stash", false, "Disable automatic stashing of uncommitted changes before branch creation")
+	startCmd.Flags().BoolVarP(&startNonInteractive, "non-interactive", "n", false, "Skip all interactive prompts and use defaults (requires issue number argument)")
 }
