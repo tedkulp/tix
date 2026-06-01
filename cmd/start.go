@@ -16,7 +16,10 @@ import (
 	"github.com/tedkulp/tix/internal/utils"
 )
 
-var startUseWorktree bool
+var (
+	startUseWorktree bool
+	startNoAutoStash bool
+)
 
 var startCmd = &cobra.Command{
 	Use:   "start [project] [issue-number]",
@@ -230,7 +233,19 @@ If the issue is from a different repo, the branch name will include the project 
 				return fmt.Errorf("failed to check repository status: %w", err)
 			}
 			if !isClean {
-				return fmt.Errorf("repository is not clean - commit or stash changes first")
+				if startNoAutoStash {
+					return fmt.Errorf("repository is not clean - commit or stash changes first")
+				}
+				if err := gitRepo.Stash(); err != nil {
+					return fmt.Errorf("failed to stash changes: %w", err)
+				}
+				fmt.Println("Stashed changes, will restore after branch creation.")
+				defer func() {
+					if popErr := gitRepo.StashPop(); popErr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", popErr)
+						fmt.Fprintf(os.Stderr, "Your changes are still in the stash — run `git stash pop` manually.\n")
+					}
+				}()
 			}
 		}
 
@@ -276,4 +291,5 @@ If the issue is from a different repo, the branch name will include the project 
 func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.Flags().BoolVarP(&startUseWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
+	startCmd.Flags().BoolVar(&startNoAutoStash, "no-auto-stash", false, "Disable automatic stashing of uncommitted changes before branch creation")
 }
