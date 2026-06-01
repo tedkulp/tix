@@ -154,3 +154,31 @@ func (r *Repository) DeleteBranch(name string) error {
 
 	return nil
 }
+
+// Stash saves all working directory changes (including untracked files) to the stash
+func (r *Repository) Stash() error {
+	cmd := exec.Command("git", "stash", "-u")
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to stash changes: %w (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+	logger.Debug("Changes stashed", map[string]interface{}{
+		"output": strings.TrimSpace(string(output)),
+	})
+	return nil
+}
+
+// StashPop restores the most recently stashed changes
+func (r *Repository) StashPop() error {
+	cmd := exec.Command("git", "stash", "pop")
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to pop stash: %w (output: %s)", err, strings.TrimSpace(string(output)))
+	}
+	logger.Debug("Stash popped", map[string]interface{}{
+		"output": strings.TrimSpace(string(output)),
+	})
+	return nil
+}
