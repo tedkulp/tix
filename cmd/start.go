@@ -98,7 +98,7 @@ If the issue is from a different repo, the branch name will include the project 
 			}
 		}
 
-		// If no matching code repo found, prompt for one
+		// If no matching code repo found, prompt for one (or error in non-interactive mode)
 		if codeRepo == nil {
 			codeRepoNames := []string{}
 			for i, repo := range cfg.Repositories {
@@ -111,16 +111,23 @@ If the issue is from a different repo, the branch name will include the project 
 				return fmt.Errorf("no code repositories configured (repos with 'directory' field)")
 			}
 
-			selectedName, err := pterm.DefaultInteractiveSelect.
-				WithOptions(codeRepoNames).
-				WithDefaultText("Select a code repository for the branch").
-				Show()
-			if err != nil {
-				return fmt.Errorf("repository selection cancelled")
+			if startNonInteractive {
+				if len(codeRepoNames) > 1 {
+					return fmt.Errorf("--non-interactive requires an unambiguous repository; pass the project name as an argument or cd into a configured directory")
+				}
+				codeRepo = cfg.GetRepo(codeRepoNames[0])
+				codeRepoName = codeRepoNames[0]
+			} else {
+				selectedName, err := pterm.DefaultInteractiveSelect.
+					WithOptions(codeRepoNames).
+					WithDefaultText("Select a code repository for the branch").
+					Show()
+				if err != nil {
+					return fmt.Errorf("repository selection cancelled")
+				}
+				codeRepo = cfg.GetRepo(selectedName)
+				codeRepoName = selectedName
 			}
-
-			codeRepo = cfg.GetRepo(selectedName)
-			codeRepoName = selectedName
 		}
 
 		logger.Info("Code repository selected", map[string]interface{}{
@@ -128,7 +135,7 @@ If the issue is from a different repo, the branch name will include the project 
 		})
 
 		// Prompt for project name if not provided
-		if len(args) == 0 && projectName == "" {
+		if len(args) == 0 && projectName == "" && !startNonInteractive {
 			repoNames := cfg.GetRepoNames()
 			if len(repoNames) == 0 {
 				return fmt.Errorf("no repositories configured")
@@ -146,7 +153,7 @@ If the issue is from a different repo, the branch name will include the project 
 		}
 
 		// Prompt for issue number if not provided
-		if len(args) == 0 && issueNumber == 0 {
+		if len(args) == 0 && issueNumber == 0 && !startNonInteractive {
 			result, err := pterm.DefaultInteractiveTextInput.
 				WithDefaultText("Enter issue number").
 				Show()
