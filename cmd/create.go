@@ -231,19 +231,27 @@ func setupRepository(cfg *config.Settings, issueRepoArg, codeRepoArg string) (*R
 			"repo": selectedRepoName,
 		})
 	} else if len(repoNames) > 1 {
-		// Multiple repos: show selector with matching repo as default
-		selectedName, err := pterm.DefaultInteractiveSelect.
-			WithOptions(repoNames).
-			WithDefaultText("Select a repository for the issue").
-			WithDefaultOption(repoName).
-			Show()
+		if nonInteractive {
+			if matchingRepo == nil {
+				return nil, fmt.Errorf("--non-interactive requires an unambiguous repository; pass the repo name as an argument or cd into a configured directory")
+			}
+			selectedRepo = matchingRepo
+			selectedRepoName = repoName
+		} else {
+			// Multiple repos: show selector with matching repo as default
+			selectedName, err := pterm.DefaultInteractiveSelect.
+				WithOptions(repoNames).
+				WithDefaultText("Select a repository for the issue").
+				WithDefaultOption(repoName).
+				Show()
 
-		if err != nil {
-			return nil, fmt.Errorf("failed to select repository: %w", err)
+			if err != nil {
+				return nil, fmt.Errorf("failed to select repository: %w", err)
+			}
+
+			selectedRepo = cfg.GetRepo(selectedName)
+			selectedRepoName = selectedName
 		}
-
-		selectedRepo = cfg.GetRepo(selectedName)
-		selectedRepoName = selectedName
 	} else if len(repoNames) == 1 {
 		// If only one repo exists, use it
 		selectedRepo = &cfg.Repositories[0]
