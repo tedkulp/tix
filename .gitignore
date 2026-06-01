@@ -40,3 +40,5 @@ main
 
 /tix
 test-repo*
+
+.worktrees
