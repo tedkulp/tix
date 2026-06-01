@@ -28,6 +28,8 @@ It will extract the issue number from the branch name and create a merge request
 		isDraft, _ := cmd.Flags().GetBool("draft")
 		// Get the remote flag value
 		remote, _ := cmd.Flags().GetString("remote")
+		// Get the auto-merge flag value
+		autoMerge, _ := cmd.Flags().GetBool("auto-merge")
 
 		cfg, err := config.Load()
 		if err != nil {
@@ -203,6 +205,7 @@ It will extract the issue number from the branch name and create a merge request
 				IsDraft:            isDraft,
 				RemoveSourceBranch: true, // always true for now
 				Squash:             true, // always true for now
+				AutoMerge:          autoMerge,
 				IssueProvider:      issueProvider,
 				CrossRepoIssueRef:  crossRepoIssueRef,
 			},
@@ -244,4 +247,5 @@ func init() {
 	rootCmd.AddCommand(mrCmd)
 	mrCmd.Flags().BoolP("draft", "d", false, "Create the merge request as a draft")
 	mrCmd.Flags().StringP("remote", "r", "origin", "Git remote to push to")
+	mrCmd.Flags().BoolP("auto-merge", "a", false, "Enable auto-merge when the pipeline succeeds")
 }

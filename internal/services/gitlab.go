@@ -55,6 +55,7 @@ type CreateMergeRequestOptions struct {
 	MilestoneID        int
 	RemoveSourceBranch bool
 	Squash             bool
+	AutoMerge          bool
 }
 
 // GitLabProvider adapts GitlabProject to the SCMProvider interface
@@ -307,12 +308,33 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		return nil, fmt.Errorf("failed to create merge request: %w", err)
 	}
 
+	if options.AutoMerge {
+		if err := p.EnableAutoMerge(result.IID); err != nil {
+			logger.Warn("Failed to enable auto-merge", map[string]interface{}{
+				"mr_iid": result.IID,
+				"error":  err.Error(),
+			})
+		}
+	}
+
 	return &GitlabMergeRequest{
 		IID:     result.IID,
 		Title:   result.Title,
 		WebURL:  result.WebURL,
 		IsDraft: options.IsDraft,
 	}, nil
+}
+
+// EnableAutoMerge sets the MR to merge automatically when its pipeline succeeds
+func (p *GitlabProject) EnableAutoMerge(mrIID int) error {
+	mergeWhenPipelineSucceeds := true
+	_, _, err := p.client.MergeRequests.AcceptMergeRequest(p.pid, mrIID, &gitlab.AcceptMergeRequestOptions{
+		MergeWhenPipelineSucceeds: &mergeWhenPipelineSucceeds,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to enable auto-merge: %w", err)
+	}
+	return nil
 }
 
 // GetMergeRequestDiff returns the diff of a merge request
@@ -804,6 +826,7 @@ func (p *GitLabProvider) CreateMergeRequest(params MergeRequestParams) (*Request
 		MilestoneID:        params.MilestoneID,
 		RemoveSourceBranch: params.RemoveSourceBranch,
 		Squash:             params.Squash,
+		AutoMerge:          params.AutoMerge,
 	}
 
 	mr, err := p.project.CreateMergeRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, options, params.Description)
