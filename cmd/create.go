@@ -20,6 +20,7 @@ var (
 	title       string
 	selfAssign  bool
 	useWorktree bool
+	noAutoStash bool
 )
 
 // RepoSettings represents repository settings and configuration
@@ -85,7 +86,19 @@ Usage:
 				return fmt.Errorf("failed to check repository status: %w", err)
 			}
 			if !isClean {
-				return fmt.Errorf("git repository has uncommitted changes - commit or stash them first")
+				if noAutoStash {
+					return fmt.Errorf("git repository has uncommitted changes - commit or stash them first")
+				}
+				if err := gitRepo.Stash(); err != nil {
+					return fmt.Errorf("failed to stash changes: %w", err)
+				}
+				fmt.Println("Stashed changes, will restore after branch creation.")
+				defer func() {
+					if popErr := gitRepo.StashPop(); popErr != nil {
+						fmt.Fprintf(os.Stderr, "Warning: failed to restore stashed changes: %v\n", popErr)
+						fmt.Fprintf(os.Stderr, "Your changes are still in the stash — run `git stash pop` manually.\n")
+					}
+				}()
 			}
 		}
 
@@ -480,4 +493,5 @@ func init() {
 	createCmd.Flags().StringVarP(&title, "title", "t", "", "Title of the issue")
 	createCmd.Flags().BoolVarP(&selfAssign, "assign", "a", true, "Assign the issue to yourself")
 	createCmd.Flags().BoolVarP(&useWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
+	createCmd.Flags().BoolVar(&noAutoStash, "no-auto-stash", false, "Disable automatic stashing of uncommitted changes before branch creation")
 }
