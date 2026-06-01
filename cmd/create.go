@@ -120,16 +120,24 @@ Usage:
 		})
 
 		// Get labels
-		repoSettings.Labels, err = promptForLabels(repoSettings.Repo.DefaultLabels)
-		if err != nil {
-			return fmt.Errorf("issue creation cancelled")
+		if nonInteractive {
+			repoSettings.Labels = repoSettings.Repo.DefaultLabels
+		} else {
+			repoSettings.Labels, err = promptForLabels(repoSettings.Repo.DefaultLabels)
+			if err != nil {
+				return fmt.Errorf("issue creation cancelled")
+			}
 		}
 
 		// Get milestone if needed
 		if repoSettings.Repo.GitlabRepo != "" {
-			repoSettings.Milestone, err = promptForMilestone()
-			if err != nil {
-				return fmt.Errorf("issue creation cancelled")
+			if nonInteractive {
+				repoSettings.Milestone = utils.GenerateMilestone(time.Now())
+			} else {
+				repoSettings.Milestone, err = promptForMilestone()
+				if err != nil {
+					return fmt.Errorf("issue creation cancelled")
+				}
 			}
 		}
 
