@@ -3,7 +3,9 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/go-github/v62/github"
+	"github.com/tedkulp/tix/internal/logger"
 	"golang.org/x/oauth2"
 )
 
@@ -35,6 +38,7 @@ type GithubPullRequest struct {
 	Title   string
 	HTMLURL string
 	IsDraft bool
+	NodeID  string
 }
 
 // NewGithubProject creates a new GitHub project client
@@ -169,7 +173,7 @@ func (p *GithubProject) GetOpenPullRequestsByBranch(branchName string) ([]*Githu
 }
 
 // CreatePullRequest creates a new pull request in the repository
-func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, issueLabels []string, descriptionOverride string) (*GithubPullRequest, error) {
+func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch string, issueNumber int, isDraft bool, autoMerge bool, issueLabels []string, descriptionOverride string) (*GithubPullRequest, error) {
 	body := descriptionOverride
 	if body == "" {
 		body = fmt.Sprintf("Closes #%d", issueNumber)
@@ -199,12 +203,79 @@ func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch stri
 		}
 	}
 
+	if autoMerge && result.NodeID != nil {
+		if err := p.EnableAutoMerge(*result.NodeID); err != nil {
+			logger.Warn("Failed to enable auto-merge", map[string]interface{}{
+				"pr_number": *result.Number,
+				"error":     err.Error(),
+			})
+		}
+	}
+
 	return &GithubPullRequest{
 		Number:  *result.Number,
 		Title:   *result.Title,
 		HTMLURL: *result.HTMLURL,
 		IsDraft: *result.Draft,
+		NodeID:  result.GetNodeID(),
 	}, nil
+}
+
+// EnableAutoMerge enables auto-merge for a pull request via GitHub's GraphQL API
+func (p *GithubProject) EnableAutoMerge(prNodeID string) error {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		return fmt.Errorf("GITHUB_TOKEN environment variable is required")
+	}
+
+	query := `mutation($input: EnablePullRequestAutoMergeInput!) {
+		enablePullRequestAutoMerge(input: $input) {
+			pullRequest { id }
+		}
+	}`
+
+	payload := map[string]interface{}{
+		"query": query,
+		"variables": map[string]interface{}{
+			"input": map[string]interface{}{
+				"pullRequestId": prNodeID,
+				"mergeMethod":   "SQUASH",
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", "https://api.github.com/graphql", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute GraphQL request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("failed to decode GraphQL response: %w", err)
+	}
+	if len(result.Errors) > 0 {
+		return fmt.Errorf("GraphQL error: %s", result.Errors[0].Message)
+	}
+
+	return nil
 }
 
 // GetPullRequestDiff returns the diff of a pull request
@@ -422,7 +493,7 @@ func (p *GitHubProvider) CreateMergeRequest(params MergeRequestParams) (*Request
 	// GitHub API doesn't support removeSourceBranch option directly,
 	// it would have to be done via repository settings or post-PR operation
 
-	pr, err := p.project.CreatePullRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, params.IsDraft, params.Labels, params.Description)
+	pr, err := p.project.CreatePullRequest(params.Title, params.SourceBranch, params.TargetBranch, params.IssueNumber, params.IsDraft, params.AutoMerge, params.Labels, params.Description)
 	if err != nil {
 		// Check for GitHub's "pull request already exists" error
 		// GitHub error message contains something like "A pull request already exists for octocat:patch-1."

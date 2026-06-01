@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-01
+
+### Added
+- `--auto-merge` / `-a` flag on `tix mr` to enable auto-merge when the pipeline succeeds (GitHub: squash merge via GraphQL; GitLab: merge when pipeline succeeds)
+- `--non-interactive` flag on `tix create` and `tix start` to bypass all interactive selectors and prompts
+- Auto-stash of dirty changes in `tix create` and `tix start`; `--no-auto-stash` flag to opt out
+
 ## [0.7.2] - 2026-05-14
 
 ### Added

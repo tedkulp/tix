@@ -19,6 +19,7 @@ type MergeRequestParams struct {
 	MilestoneID        int
 	RemoveSourceBranch bool
 	Squash             bool
+	AutoMerge          bool
 	Description        string // Optional description - if empty, will use default "Closes #X" format
 }
 
@@ -94,6 +95,7 @@ type CreateMergeRequestParams struct {
 	IsDraft            bool
 	RemoveSourceBranch bool
 	Squash             bool
+	AutoMerge          bool
 	// IssueProvider is optional - if set, used to fetch issue details (for cross-repo scenarios)
 	IssueProvider SCMProvider
 	// CrossRepoIssueRef is optional - if set, used in MR description instead of simple "#123"
@@ -178,6 +180,7 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 		MilestoneID:        issue.MilestoneID,
 		RemoveSourceBranch: params.RemoveSourceBranch,
 		Squash:             params.Squash,
+		AutoMerge:          params.AutoMerge,
 		Description:        description,
 	}
 
