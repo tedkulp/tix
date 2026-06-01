@@ -17,10 +17,11 @@ import (
 )
 
 var (
-	title       string
-	selfAssign  bool
-	useWorktree bool
-	noAutoStash bool
+	title          string
+	selfAssign     bool
+	useWorktree    bool
+	noAutoStash    bool
+	nonInteractive bool
 )
 
 // RepoSettings represents repository settings and configuration
@@ -46,6 +47,10 @@ Usage:
   tix create issues                # Create issue in issues repo, branch in current/matching repo
   tix create issues code           # Create issue in issues repo, branch in code`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if nonInteractive && title == "" {
+			return fmt.Errorf("--non-interactive requires -t/--title")
+		}
+
 		logger.Debug("Starting create command")
 
 		// Parse arguments for issue repo and code repo
@@ -494,4 +499,5 @@ func init() {
 	createCmd.Flags().BoolVarP(&selfAssign, "assign", "a", true, "Assign the issue to yourself")
 	createCmd.Flags().BoolVarP(&useWorktree, "worktree", "w", false, "Create a git worktree instead of checking out a branch")
 	createCmd.Flags().BoolVar(&noAutoStash, "no-auto-stash", false, "Disable automatic stashing of uncommitted changes before branch creation")
+	createCmd.Flags().BoolVarP(&nonInteractive, "non-interactive", "n", false, "Skip all interactive prompts and use defaults (requires -t/--title)")
 }
