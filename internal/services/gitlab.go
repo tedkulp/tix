@@ -33,11 +33,12 @@ type GraphQLResponse struct {
 
 // GitlabIssue represents a GitLab issue
 type GitlabIssue struct {
-	IID         int
-	Title       string
-	Labels      []string
-	MilestoneID int
-	WebURL      string
+	IID            int
+	Title          string
+	Labels         []string
+	MilestoneID    int
+	MilestoneTitle string
+	WebURL         string
 }
 
 // GitlabMergeRequest represents a GitLab merge request
@@ -257,16 +258,19 @@ func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
 	}
 
 	var milestoneID int
+	var milestoneTitle string
 	if issue.Milestone != nil {
 		milestoneID = issue.Milestone.ID
+		milestoneTitle = issue.Milestone.Title
 	}
 
 	return &GitlabIssue{
-		IID:         issue.IID,
-		Title:       issue.Title,
-		Labels:      issue.Labels,
-		MilestoneID: milestoneID,
-		WebURL:      issue.WebURL,
+		IID:            issue.IID,
+		Title:          issue.Title,
+		Labels:         issue.Labels,
+		MilestoneID:    milestoneID,
+		MilestoneTitle: milestoneTitle,
+		WebURL:         issue.WebURL,
 	}, nil
 }
 
@@ -862,10 +866,11 @@ func (p *GitLabProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 	}
 
 	return &IssueResult{
-		Number:      issue.IID,
-		Title:       issue.Title,
-		Labels:      issue.Labels,
-		MilestoneID: issue.MilestoneID,
+		Number:         issue.IID,
+		Title:          issue.Title,
+		Labels:         issue.Labels,
+		MilestoneID:    issue.MilestoneID,
+		MilestoneTitle: issue.MilestoneTitle,
 	}, nil
 }
 

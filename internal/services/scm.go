@@ -78,10 +78,11 @@ type RequestResult struct {
 
 // IssueResult represents an issue from either system
 type IssueResult struct {
-	Number      int
-	Title       string
-	Labels      []string
-	MilestoneID int
+	Number         int
+	Title          string
+	Labels         []string
+	MilestoneID    int
+	MilestoneTitle string
 }
 
 // CreateMergeRequestParams is a convenience struct for CreateMergeRequest parameters
