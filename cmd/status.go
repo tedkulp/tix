@@ -90,6 +90,7 @@ Exits with code 1 if the configuration or API calls fail.`,
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				_ = enc.Encode(out)
+				os.Exit(1)
 			}
 			return fmt.Errorf("branch %q is not a ticket branch", currentBranch)
 		}
