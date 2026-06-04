@@ -26,10 +26,11 @@ type GithubProject struct {
 
 // GithubIssue represents a GitHub issue
 type GithubIssue struct {
-	Number  int
-	Title   string
-	Labels  []string
-	HTMLURL string
+	Number         int
+	Title          string
+	Labels         []string
+	HTMLURL        string
+	MilestoneTitle string
 }
 
 // GithubPullRequest represents a GitHub pull request
@@ -401,11 +402,17 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 		labels = append(labels, *label.Name)
 	}
 
+	var milestoneTitle string
+	if issue.Milestone != nil && issue.Milestone.Title != nil {
+		milestoneTitle = *issue.Milestone.Title
+	}
+
 	return &GithubIssue{
-		Number:  *issue.Number,
-		Title:   *issue.Title,
-		Labels:  labels,
-		HTMLURL: *issue.HTMLURL,
+		Number:         *issue.Number,
+		Title:          *issue.Title,
+		Labels:         labels,
+		HTMLURL:        *issue.HTMLURL,
+		MilestoneTitle: milestoneTitle,
 	}, nil
 }
 
@@ -534,10 +541,11 @@ func (p *GitHubProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 	// GitHub issues don't have milestoneID in the same format
 	// We'll leave it as 0 for now
 	return &IssueResult{
-		Number:      issue.Number,
-		Title:       issue.Title,
-		Labels:      issue.Labels,
-		MilestoneID: 0, // GitHub uses a different milestone format
+		Number:         issue.Number,
+		Title:          issue.Title,
+		Labels:         issue.Labels,
+		MilestoneID:    0, // GitHub uses a different milestone format
+		MilestoneTitle: issue.MilestoneTitle,
 	}, nil
 }
 
