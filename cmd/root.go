@@ -75,7 +75,11 @@ func Execute() error {
 	err := rootCmd.Execute()
 	// Handle errors here instead of Cobra's default handling
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		if verboseCount > 0 {
+			logger.Error(err.Error(), err)
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", err.Error())
+		}
 		return err
 	}
 	return nil
