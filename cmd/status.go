@@ -26,6 +26,7 @@ type statusJSON struct {
 	MRNumber      int      `json:"mr_number"`
 	MRIsDraft     bool     `json:"mr_is_draft"`
 	SuggestedNext string   `json:"suggested_next"`
+	MRLookupError string   `json:"mr_lookup_error"`
 }
 
 var statusCmd = &cobra.Command{
@@ -133,6 +134,10 @@ Exits with code 1 if the configuration or API calls fail.`,
 			if labels == nil {
 				labels = []string{}
 			}
+			mrLookupError := ""
+			if ws.MRLookupErr != nil {
+				mrLookupError = ws.MRLookupErr.Error()
+			}
 			out := statusJSON{
 				Branch:        ws.Branch,
 				IssueNumber:   ws.IssueNumber,
@@ -143,6 +148,7 @@ Exits with code 1 if the configuration or API calls fail.`,
 				MRNumber:      ws.MRNumber,
 				MRIsDraft:     ws.MRIsDraft,
 				SuggestedNext: ws.SuggestedNext,
+				MRLookupError: mrLookupError,
 			}
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
