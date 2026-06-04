@@ -32,10 +32,11 @@ type RepoInfo struct {
 
 // Command flags
 var (
-	onlyIssue        bool
-	onlyMergeRequest bool
-	onlyPullRequest  bool  // For GitHub users
-	useRAG           *bool // Force RAG on/off, nil means auto-detect
+	onlyIssue              bool
+	onlyMergeRequest       bool
+	onlyPullRequest        bool  // For GitHub users
+	useRAG                 *bool // Force RAG on/off, nil means auto-detect
+	setdescNonInteractive  bool
 )
 
 var setdescCmd = &cobra.Command{
@@ -199,6 +200,10 @@ func selectRepository() (*RepoInfo, error) {
 			return nil, fmt.Errorf("no repositories configured")
 		}
 
+		if setdescNonInteractive {
+			return nil, fmt.Errorf("--non-interactive requires an unambiguous repository; cd into a configured directory")
+		}
+
 		// Use pterm's interactive select component
 		selectedName, err := pterm.DefaultInteractiveSelect.
 			WithOptions(repoNames).
@@ -352,7 +357,7 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 
 	// If multiple merge requests are found, ask the user to select one
 	var selectedMR services.MRDescriptionResult
-	if len(mrInfo.OpenRequests) > 1 {
+	if len(mrInfo.OpenRequests) > 1 && !setdescNonInteractive {
 		// Use pterm's interactive select component
 		selectedTitle, err := pterm.DefaultInteractiveSelect.
 			WithOptions(mrTitles).
@@ -419,16 +424,17 @@ func generateAndUpdateMRDescription(ctx context.Context, client *openai.Client, 
 	fmt.Println()
 
 	// Get user confirmation for updating MR description
-	result, err := pterm.DefaultInteractiveConfirm.
-		WithDefaultValue(true).
-		WithDefaultText("Do you want to update the merge request description?").
-		Show()
-	if err != nil {
-		return fmt.Errorf("cancelled updating merge request description")
-	}
-
-	if !result {
-		return nil
+	if !setdescNonInteractive {
+		result, err := pterm.DefaultInteractiveConfirm.
+			WithDefaultValue(true).
+			WithDefaultText("Do you want to update the merge request description?").
+			Show()
+		if err != nil {
+			return fmt.Errorf("cancelled updating merge request description")
+		}
+		if !result {
+			return nil
+		}
 	}
 
 	// Update the description using the provider
@@ -473,16 +479,19 @@ func generateAndUpdateIssueDescription(ctx context.Context, client *openai.Clien
 			fmt.Println("========================================")
 			fmt.Println()
 
-			// Get user confirmation for title update
-			titleResult, err := pterm.DefaultInteractiveConfirm.
-				WithDefaultValue(true).
-				WithDefaultText("Do you want to update the issue title?").
-				Show()
-			if err != nil {
-				return fmt.Errorf("cancelled updating issue title")
+			if setdescNonInteractive {
+				shouldUpdateTitle = true
+			} else {
+				// Get user confirmation for title update
+				titleResult, err := pterm.DefaultInteractiveConfirm.
+					WithDefaultValue(true).
+					WithDefaultText("Do you want to update the issue title?").
+					Show()
+				if err != nil {
+					return fmt.Errorf("cancelled updating issue title")
+				}
+				shouldUpdateTitle = titleResult
 			}
-
-			shouldUpdateTitle = titleResult
 			fmt.Println()
 		}
 	}
@@ -494,16 +503,17 @@ func generateAndUpdateIssueDescription(ctx context.Context, client *openai.Clien
 	fmt.Println()
 
 	// Get user confirmation for issue description update
-	descResult, err := pterm.DefaultInteractiveConfirm.
-		WithDefaultValue(true).
-		WithDefaultText("Do you want to update the issue description?").
-		Show()
-	if err != nil {
-		return fmt.Errorf("cancelled updating issue description")
-	}
-
-	if !descResult {
-		return nil
+	if !setdescNonInteractive {
+		descResult, err := pterm.DefaultInteractiveConfirm.
+			WithDefaultValue(true).
+			WithDefaultText("Do you want to update the issue description?").
+			Show()
+		if err != nil {
+			return fmt.Errorf("cancelled updating issue description")
+		}
+		if !descResult {
+			return nil
+		}
 	}
 
 	// Update issue description (use IssueDescriptionProvider for cross-repo support)
@@ -538,4 +548,6 @@ func init() {
 	// Add flag to force RAG on/off (for testing)
 	useRAG = setdescCmd.Flags().Bool("use-rag", false, "Force RAG approach on (true) or off (false). If not specified, auto-detects based on diff size")
 	setdescCmd.Flags().Lookup("use-rag").NoOptDefVal = "true"
+
+	setdescCmd.Flags().BoolVarP(&setdescNonInteractive, "non-interactive", "n", false, "Skip all interactive prompts and accept defaults")
 }
