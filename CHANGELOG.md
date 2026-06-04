@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-04
+
+### Added
+- `tix status` command: shows the current branch's linked issue, labels, milestone, and MR state, and suggests the next workflow step (`tix mr`, `tix setdesc`, or `tix ready`); supports `--json` / `-j` for machine-readable output
+- `--non-interactive` / `-n` flag on `tix setdesc` to skip all interactive prompts and accept defaults
+
+### Fixed
+- Error messages now route through the structured logger in verbose mode (`-v`/`-vv`) and print once to stderr in normal mode (previously printed twice)
+
 ## [0.8.0] - 2026-06-01
 
 ### Added
