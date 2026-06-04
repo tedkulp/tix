@@ -135,9 +135,15 @@ func TestGetWorkflowStatus_MRLookupFails(t *testing.T) {
 		issueResult: &IssueResult{Number: 42, Title: "Fix bug", Labels: []string{}},
 		mrErr:       errors.New("API error"),
 	}
-	_, err := GetWorkflowStatus(provider, provider, "42-fix-bug", 42, "")
-	if err == nil {
-		t.Fatal("expected error when MR lookup fails")
+	status, err := GetWorkflowStatus(provider, provider, "42-fix-bug", 42, "")
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if status.MRLookupErr == nil {
+		t.Fatal("expected MRLookupErr to be set when MR lookup fails")
+	}
+	if status.IssueTitle != "Fix bug" {
+		t.Errorf("IssueTitle = %q, want %q — issue info should be preserved on MR lookup failure", status.IssueTitle, "Fix bug")
 	}
 }
 

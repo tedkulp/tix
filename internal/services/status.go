@@ -15,21 +15,18 @@ type WorkflowStatus struct {
 	MRNumber      int
 	MRIsDraft     bool
 	SuggestedNext string
+	MRLookupErr   error
 }
 
 // GetWorkflowStatus resolves the current state of a ticket branch.
 // codeProvider is used for MR lookup (the repo where the MR lives).
 // issueProvider is used for issue lookup (may be the same as codeProvider).
 // readyLabel is the configured label that marks an issue ready for review ("" means not configured).
+// MR lookup failure is treated as a soft error — the function returns the issue info with MRLookupErr set.
 func GetWorkflowStatus(codeProvider SCMProvider, issueProvider SCMProvider, branch string, issueNumber int, readyLabel string) (*WorkflowStatus, error) {
 	issue, err := issueProvider.GetIssue(issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue #%d: %w", issueNumber, err)
-	}
-
-	mrs, err := codeProvider.GetOpenRequestsByBranch(branch)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get open requests for branch %q: %w", branch, err)
 	}
 
 	status := &WorkflowStatus{
@@ -38,6 +35,12 @@ func GetWorkflowStatus(codeProvider SCMProvider, issueProvider SCMProvider, bran
 		IssueTitle:  issue.Title,
 		IssueLabels: issue.Labels,
 		Milestone:   issue.MilestoneTitle,
+	}
+
+	mrs, err := codeProvider.GetOpenRequestsByBranch(branch)
+	if err != nil {
+		status.MRLookupErr = fmt.Errorf("failed to get open requests for branch %q: %w", branch, err)
+		return status, nil
 	}
 
 	if len(mrs) == 0 {
