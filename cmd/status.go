@@ -66,7 +66,7 @@ Exits with code 1 if the configuration or API calls fail.`,
 			}
 			if strings.HasPrefix(wd, absRepoDir) && len(absRepoDir) > bestMatchLength {
 				matchingRepo = &cfg.Repositories[i]
-				repoName = cfg.GetRepoNames()[i]
+				repoName = repo.Name
 				bestMatchLength = len(absRepoDir)
 			}
 		}
@@ -84,16 +84,13 @@ Exits with code 1 if the configuration or API calls fail.`,
 
 		projectName, issueNumber, err := utils.ExtractIssueInfo(currentBranch)
 		if err != nil {
-			// Not a ticket branch — print message and exit non-zero
 			if jsonOutput {
 				out := statusJSON{Branch: currentBranch, IssueLabels: []string{}}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				_ = enc.Encode(out)
-			} else {
-				fmt.Fprintf(os.Stderr, "Error: branch %q is not a ticket branch\n", currentBranch)
 			}
-			os.Exit(1)
+			return fmt.Errorf("branch %q is not a ticket branch", currentBranch)
 		}
 
 		// Build code repo provider
