@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tedkulp/tix/internal/git"
 	"github.com/tedkulp/tix/internal/logger"
 )
 
@@ -85,10 +84,16 @@ type IssueResult struct {
 	MilestoneTitle string
 }
 
+// GitPusher is the subset of git repository behavior that CreateMergeRequest
+// needs. *git.Repository satisfies it; tests can supply a fake.
+type GitPusher interface {
+	Push(remoteName string, branchName string) error
+}
+
 // CreateMergeRequestParams is a convenience struct for CreateMergeRequest parameters
 type CreateMergeRequestParams struct {
 	Provider           SCMProvider
-	GitRepo            *git.Repository
+	GitRepo            GitPusher
 	CurrentBranch      string
 	Remote             string
 	TargetBranch       string
@@ -101,6 +106,18 @@ type CreateMergeRequestParams struct {
 	IssueProvider SCMProvider
 	// CrossRepoIssueRef is optional - if set, used in MR description instead of simple "#123"
 	CrossRepoIssueRef string
+}
+
+// buildRequestTitle builds the merge/pull request title from the issue.
+// When crossRepoRef is set (the issue lives in a different repo) it is used
+// verbatim as the prefix, e.g. "group/project#225: title". Otherwise the
+// simple "#225: title" form is used.
+func buildRequestTitle(issueNumber int, crossRepoRef, issueTitle string) string {
+	issueRef := fmt.Sprintf("#%d", issueNumber)
+	if crossRepoRef != "" {
+		issueRef = crossRepoRef
+	}
+	return fmt.Sprintf("%s: %s", issueRef, issueTitle)
 }
 
 // CreateMergeRequest contains the common flow for creating a merge/pull request
@@ -155,8 +172,8 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 		return nil, fmt.Errorf("failed to get issue details: %w", err)
 	}
 
-	// Create request title with issue number and full title
-	requestTitle := fmt.Sprintf("#%d: %s", params.IssueNumber, issue.Title)
+	// Create request title with issue number and full title.
+	requestTitle := buildRequestTitle(params.IssueNumber, params.CrossRepoIssueRef, issue.Title)
 
 	logger.Info("Creating request with issue metadata", map[string]interface{}{
 		"issue_title":     issue.Title,
