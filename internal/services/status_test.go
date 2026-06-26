@@ -9,8 +9,18 @@ import (
 type mockSCMProvider struct {
 	issueResult *IssueResult
 	issueErr    error
-	mrResults   []RequestResult
-	mrErr       error
+	// mrResults/mrErr are returned by GetOpenRequestsByBranch (cross-repo lookup).
+	mrResults []RequestResult
+	mrErr     error
+	// openResults/openErr are returned by GetOpenRequests (same-repo lookup).
+	openResults []RequestResult
+	openErr     error
+	// createMRResult/createMRErr are returned by CreateMergeRequest, and
+	// createMRParams captures the params it was called with.
+	createMRResult *RequestResult
+	createMRErr    error
+	createMRParams *MergeRequestParams
+	crossRepoRef   string
 }
 
 func (m *mockSCMProvider) GetIssue(_ int) (*IssueResult, error) {
@@ -19,16 +29,20 @@ func (m *mockSCMProvider) GetIssue(_ int) (*IssueResult, error) {
 func (m *mockSCMProvider) GetOpenRequestsByBranch(_ string) ([]RequestResult, error) {
 	return m.mrResults, m.mrErr
 }
-func (m *mockSCMProvider) CreateMergeRequest(_ MergeRequestParams) (*RequestResult, error) {
-	return nil, nil
+func (m *mockSCMProvider) CreateMergeRequest(params MergeRequestParams) (*RequestResult, error) {
+	captured := params
+	m.createMRParams = &captured
+	return m.createMRResult, m.createMRErr
 }
 func (m *mockSCMProvider) CreateIssue(_ IssueParams) (*IssueResult, error) { return nil, nil }
-func (m *mockSCMProvider) GetOpenRequests(_ int) ([]RequestResult, error)  { return nil, nil }
-func (m *mockSCMProvider) AddLabelsToIssue(_ int, _ []string) error        { return nil }
-func (m *mockSCMProvider) RemoveLabelsFromIssue(_ int, _ []string) error   { return nil }
-func (m *mockSCMProvider) UpdateIssueStatus(_ int, _ string) error         { return nil }
-func (m *mockSCMProvider) GetURL() string                                  { return "" }
-func (m *mockSCMProvider) GetCrossRepoIssueRef(_ int) string               { return "" }
+func (m *mockSCMProvider) GetOpenRequests(_ int) ([]RequestResult, error) {
+	return m.openResults, m.openErr
+}
+func (m *mockSCMProvider) AddLabelsToIssue(_ int, _ []string) error      { return nil }
+func (m *mockSCMProvider) RemoveLabelsFromIssue(_ int, _ []string) error { return nil }
+func (m *mockSCMProvider) UpdateIssueStatus(_ int, _ string) error       { return nil }
+func (m *mockSCMProvider) GetURL() string                                { return "" }
+func (m *mockSCMProvider) GetCrossRepoIssueRef(_ int) string             { return m.crossRepoRef }
 
 func TestGetWorkflowStatus_NoMR(t *testing.T) {
 	provider := &mockSCMProvider{
