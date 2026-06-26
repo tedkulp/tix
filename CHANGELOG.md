@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-06-26
+
+### Fixed
+- `tix mr` now uses the full cross-repo issue reference (e.g. `group/project#225`) in the merge request title when the linked issue lives in another repo, matching the `Closes …` line in the description (previously the title used the bare `#225`)
+
 ## [0.9.0] - 2026-06-04
 
 ### Added
