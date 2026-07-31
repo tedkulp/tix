@@ -4,8 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/tedkulp/tix/internal/browser"
 	"github.com/tedkulp/tix/internal/logger"
 )
+
+// openURL opens a URL in the default browser. It is a variable so tests can
+// replace it with a stub instead of launching a real browser.
+var openURL = browser.OpenURL
 
 // MergeRequestParams holds parameters for creating a merge request
 type MergeRequestParams struct {
@@ -216,17 +221,11 @@ func CreateMergeRequest(params CreateMergeRequestParams) (*RequestResult, error)
 	})
 
 	// Open the request in browser
-	if err := OpenURL(request.URL); err != nil {
+	if err := openURL(request.URL); err != nil {
 		logger.Warn("Failed to open browser", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
 	return request, nil
-}
-
-// OpenURL opens a URL in the default browser (inline implementation to avoid import cycle)
-func OpenURL(url string) error {
-	// Import the utils.OpenURL functionality here to avoid import cycle
-	return fmt.Errorf("browser opening not implemented in this context")
 }
