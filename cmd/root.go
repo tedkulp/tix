@@ -5,12 +5,14 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/tedkulp/tix/internal/config"
 	"github.com/tedkulp/tix/internal/logger"
 )
 
 // Flag variables
 var (
 	verboseCount int
+	configFile   string
 )
 
 var rootCmd = &cobra.Command{
@@ -30,6 +32,9 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 
 		// Initialize logger with verbose count
 		logger.InitLogger(verboseCount)
+
+		// Apply the --config flag override, if provided
+		config.SetConfigFile(configFile)
 
 		switch verboseCount {
 		case 0:
@@ -89,6 +94,6 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	rootCmd.PersistentFlags().StringP("config", "c", "~/.tix.yml", "config file (default is $HOME/.tix.yml)")
+	rootCmd.PersistentFlags().StringVarP(&configFile, "config", "c", "", "config file (default is $HOME/.tix.yml)")
 	rootCmd.PersistentFlags().CountVarP(&verboseCount, "verbose", "v", "increase verbosity: -v for INFO, -vv for DEBUG (default: WARN)")
 }

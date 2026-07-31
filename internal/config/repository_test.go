@@ -1,6 +1,30 @@
 package config
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestLoadHonorsConfigFileOverride(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "custom.yml")
+	content := []byte("ready_label: from-custom-file\nrepositories: []\n")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("failed to write temp config: %v", err)
+	}
+
+	SetConfigFile(path)
+	t.Cleanup(func() { SetConfigFile("") })
+
+	settings, err := Load()
+	if err != nil {
+		t.Fatalf("Load() returned error: %v", err)
+	}
+	if settings.ReadyLabel != "from-custom-file" {
+		t.Errorf("ReadyLabel = %q, want %q", settings.ReadyLabel, "from-custom-file")
+	}
+}
 
 func TestResolveWorktreePath(t *testing.T) {
 	tests := []struct {
