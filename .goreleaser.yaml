@@ -66,18 +66,25 @@ changelog:
       - "Merge pull request"
       - "Merge branch"
 
-brews:
+homebrew_casks:
   - repository:
       owner: tedkulp
       name: homebrew-tap
       token: '{{ .Env.HOMEBREW_TOKEN }}'
-    directory: Formula
     homepage: https://github.com/tedkulp/tix
     description: A CLI tool for creating tickets and branches in Git repositories
     license: MIT
-    test: |
-      system "#{bin}/tix --version"
-    install: |
-      bin.install "tix"
+    binaries:
+      - tix
     ids:
-      - default 
+      - default
+    url:
+      verified: github.com/tedkulp/tix
+    hooks:
+      post:
+        # The binary is not signed or notarized, so strip the quarantine
+        # attribute Gatekeeper adds to downloaded artifacts.
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tix"]
+          end
