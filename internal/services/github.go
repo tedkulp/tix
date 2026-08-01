@@ -299,7 +299,7 @@ func (p *GithubProject) GetPullRequestDiff(prNumber int) (string, error) {
 
 	// Add headers
 	req.Header.Add("Accept", "application/vnd.github.v3.diff")
-	req.Header.Add("Authorization", "token "+token)
+	req.Header.Add("Authorization", "bearer "+token)
 
 	// Make the request
 	resp, err := client.Do(req)
