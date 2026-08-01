@@ -153,9 +153,11 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 
 // CreateIssue creates a new issue in the repository
 func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, milestoneTitle ...string) (*GitlabIssue, error) {
-	labelSlice := strings.Split(labels, ",")
-	for i, label := range labelSlice {
-		labelSlice[i] = strings.TrimSpace(label)
+	labelSlice := make([]string, 0)
+	for _, label := range strings.Split(labels, ",") {
+		if trimmed := strings.TrimSpace(label); trimmed != "" {
+			labelSlice = append(labelSlice, trimmed)
+		}
 	}
 
 	labelsOpt := gitlab.LabelOptions(labelSlice)
