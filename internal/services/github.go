@@ -399,7 +399,7 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 
 	var labels []string
 	for _, label := range issue.Labels {
-		labels = append(labels, *label.Name)
+		labels = append(labels, label.GetName())
 	}
 
 	var milestoneTitle string
