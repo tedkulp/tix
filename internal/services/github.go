@@ -69,9 +69,11 @@ func NewGithubProject(repoName string) (*GithubProject, error) {
 
 // CreateIssue creates a new issue in the repository
 func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, milestoneTitle ...string) (*GithubIssue, error) {
-	labelSlice := strings.Split(labels, ",")
-	for i, label := range labelSlice {
-		labelSlice[i] = strings.TrimSpace(label)
+	labelSlice := make([]string, 0)
+	for _, label := range strings.Split(labels, ",") {
+		if trimmed := strings.TrimSpace(label); trimmed != "" {
+			labelSlice = append(labelSlice, trimmed)
+		}
 	}
 
 	issue := &github.IssueRequest{
