@@ -2,8 +2,27 @@ package services
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+
+	"github.com/tedkulp/tix/internal/browser"
 )
+
+// stubOpenURL replaces the browser opener for the duration of a test and
+// returns the slice that records the URLs it was called with.
+func stubOpenURL(t *testing.T) *[]string {
+	t.Helper()
+
+	original := openURL
+	opened := &[]string{}
+	openURL = func(url string) error {
+		*opened = append(*opened, url)
+		return nil
+	}
+	t.Cleanup(func() { openURL = original })
+
+	return opened
+}
 
 // fakePusher records Push calls and returns a configurable error.
 type fakePusher struct {
@@ -61,6 +80,7 @@ func TestBuildRequestTitle(t *testing.T) {
 }
 
 func TestCreateMergeRequest_SameRepo(t *testing.T) {
+	opened := stubOpenURL(t)
 	pusher := &fakePusher{}
 	provider := &mockSCMProvider{
 		issueResult:    &IssueResult{Number: 42, Title: "Fix bug", Labels: []string{"bug"}, MilestoneID: 7},
@@ -110,9 +130,13 @@ func TestCreateMergeRequest_SameRepo(t *testing.T) {
 		t.Errorf("flags not propagated: draft=%v squash=%v removeSource=%v",
 			got.IsDraft, got.Squash, got.RemoveSourceBranch)
 	}
+	if len(*opened) != 1 || (*opened)[0] != "https://example.com/mr/1" {
+		t.Errorf("expected the created request URL to be opened, got %v", *opened)
+	}
 }
 
 func TestCreateMergeRequest_CrossRepo(t *testing.T) {
+	stubOpenURL(t)
 	pusher := &fakePusher{}
 	// codeProvider is where the MR is created; it has no issue and is queried by branch.
 	codeProvider := &mockSCMProvider{
@@ -225,11 +249,37 @@ func TestCreateMergeRequest_GetIssueFails(t *testing.T) {
 	}
 }
 
-func TestOpenURL_NotImplemented(t *testing.T) {
-	// OpenURL is a placeholder in this package to avoid an import cycle; the
-	// real implementation lives in utils. It should report that it is a no-op
-	// rather than silently succeeding.
-	if err := OpenURL("https://example.com"); err == nil {
-		t.Error("expected OpenURL to return an error in this context")
+func TestOpenURLDefaultsToRealBrowserOpener(t *testing.T) {
+	// The opener used by CreateMergeRequest must be the real implementation,
+	// not a stub that always fails.
+	if reflect.ValueOf(openURL).Pointer() != reflect.ValueOf(browser.OpenURL).Pointer() {
+		t.Error("openURL should default to browser.OpenURL")
+	}
+}
+
+func TestCreateMergeRequest_FailedBrowserOpenDoesNotFailRequest(t *testing.T) {
+	original := openURL
+	openURL = func(string) error { return errors.New("no browser") }
+	t.Cleanup(func() { openURL = original })
+
+	pusher := &fakePusher{}
+	provider := &mockSCMProvider{
+		issueResult:    &IssueResult{Number: 42, Title: "Fix bug"},
+		openResults:    []RequestResult{},
+		createMRResult: &RequestResult{ID: 1, URL: "https://example.com/mr/1"},
+	}
+
+	result, err := CreateMergeRequest(CreateMergeRequestParams{
+		Provider:      provider,
+		GitRepo:       pusher,
+		CurrentBranch: "42-fix-bug",
+		Remote:        "origin",
+		IssueNumber:   42,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error when the browser fails to open: %v", err)
+	}
+	if result == nil || result.ID != 1 {
+		t.Fatalf("expected the created request to be returned, got %+v", result)
 	}
 }
