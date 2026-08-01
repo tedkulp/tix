@@ -109,3 +109,73 @@ func TestResolveDefaultBranch(t *testing.T) {
 		})
 	}
 }
+
+func TestFindRepoForDir(t *testing.T) {
+	repos := []Repository{
+		{Name: "issues-only"},
+		{Name: "tix", Directory: "/home/user/src/tix"},
+		{Name: "tix-nested", Directory: "/home/user/src/tix/vendor/dep"},
+		{Name: "other", Directory: "/home/user/src/other"},
+	}
+
+	tests := []struct {
+		name string
+		dir  string
+		want string // repo name, "" means no match
+	}{
+		{
+			name: "exact match on repo root",
+			dir:  "/home/user/src/tix",
+			want: "tix",
+		},
+		{
+			name: "subdirectory of repo",
+			dir:  "/home/user/src/tix/cmd",
+			want: "tix",
+		},
+		{
+			name: "nested repo wins over parent (longest match)",
+			dir:  "/home/user/src/tix/vendor/dep/internal",
+			want: "tix-nested",
+		},
+		{
+			name: "sibling directory sharing a name prefix must not match",
+			dir:  "/home/user/src/tix-other",
+			want: "",
+		},
+		{
+			name: "sibling subdirectory sharing a name prefix must not match",
+			dir:  "/home/user/src/tix-other/cmd",
+			want: "",
+		},
+		{
+			name: "unrelated directory",
+			dir:  "/tmp/somewhere",
+			want: "",
+		},
+		{
+			name: "repo without a directory is never matched",
+			dir:  "/home/user/src",
+			want: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &Settings{Repositories: repos}
+			got := s.FindRepoForDir(tt.dir)
+			if tt.want == "" {
+				if got != nil {
+					t.Fatalf("FindRepoForDir(%q) = %q, want no match", tt.dir, got.Name)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatalf("FindRepoForDir(%q) = no match, want %q", tt.dir, tt.want)
+			}
+			if got.Name != tt.want {
+				t.Errorf("FindRepoForDir(%q) = %q, want %q", tt.dir, got.Name, tt.want)
+			}
+		})
+	}
+}
