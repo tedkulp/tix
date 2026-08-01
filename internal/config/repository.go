@@ -68,12 +68,26 @@ func (s *Settings) ResolveDefaultBranch(repo *Repository) string {
 	return "main"
 }
 
+// configFileOverride, when set via SetConfigFile, takes precedence over the
+// default $HOME/.tix.yml lookup in Load.
+var configFileOverride string
+
+// SetConfigFile sets an explicit config file path for Load to use instead of
+// the default $HOME/.tix.yml. Passing an empty string restores the default.
+func SetConfigFile(path string) {
+	configFileOverride = path
+}
+
 // Load reads the configuration from the specified file
 func Load() (*Settings, error) {
 	v := viper.New()
-	v.SetConfigName(".tix")
-	v.SetConfigType("yaml")
-	v.AddConfigPath("$HOME")
+	if configFileOverride != "" {
+		v.SetConfigFile(expandHomeDir(configFileOverride))
+	} else {
+		v.SetConfigName(".tix")
+		v.SetConfigType("yaml")
+		v.AddConfigPath("$HOME")
+	}
 
 	// Enable env var substitution
 	v.AutomaticEnv()
