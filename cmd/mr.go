@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -51,28 +50,11 @@ It will extract the issue number from the branch name and create a merge request
 		})
 
 		// Find repo that matches the current directory (only code repos)
-		var matchingRepo *config.Repository
 		var repoName string
-		var bestMatchLength = 0 // Track the best match length
 
-		for i, repo := range cfg.Repositories {
-			if !repo.IsCodeRepo() {
-				continue
-			}
-			absRepoDir, err := filepath.Abs(repo.Directory)
-			if err != nil {
-				continue
-			}
-
-			// Check if current directory is within the repo directory
-			if strings.HasPrefix(wd, absRepoDir) {
-				// If we found a better match (longer path), use it
-				if len(absRepoDir) > bestMatchLength {
-					matchingRepo = &cfg.Repositories[i]
-					repoName = cfg.GetRepoNames()[i]
-					bestMatchLength = len(absRepoDir)
-				}
-			}
+		matchingRepo := cfg.FindRepoForDir(wd)
+		if matchingRepo != nil {
+			repoName = matchingRepo.Name
 		}
 
 		// If no matching repo found, show selector (only code repos)

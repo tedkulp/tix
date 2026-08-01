@@ -77,25 +77,11 @@ If the issue is from a different repo, the branch name will include the project 
 		}
 
 		// Find code repo (must have directory)
-		var codeRepo *config.Repository
 		var codeRepoName string
-		var bestMatchLength int
 
-		for i, repo := range cfg.Repositories {
-			if !repo.IsCodeRepo() {
-				continue
-			}
-			absRepoDir, err := filepath.Abs(repo.Directory)
-			if err != nil {
-				continue
-			}
-			if strings.HasPrefix(wd, absRepoDir) {
-				if len(absRepoDir) > bestMatchLength {
-					codeRepo = &cfg.Repositories[i]
-					codeRepoName = cfg.GetRepoNames()[i]
-					bestMatchLength = len(absRepoDir)
-				}
-			}
+		codeRepo := cfg.FindRepoForDir(wd)
+		if codeRepo != nil {
+			codeRepoName = codeRepo.Name
 		}
 
 		// If no matching code repo found, prompt for one (or error in non-interactive mode)

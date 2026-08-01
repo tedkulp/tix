@@ -162,3 +162,47 @@ func (s *Settings) GetRepo(name string) *Repository {
 	}
 	return nil
 }
+
+// FindRepoForDir returns the code repository whose directory contains dir, or
+// nil if none does. Non-code repos (those without a directory) are ignored.
+// When repositories are nested, the most deeply nested match wins.
+func (s *Settings) FindRepoForDir(dir string) *Repository {
+	var match *Repository
+	bestMatchLength := 0
+
+	for i := range s.Repositories {
+		repo := &s.Repositories[i]
+		if !repo.IsCodeRepo() {
+			continue
+		}
+		absRepoDir, err := filepath.Abs(repo.Directory)
+		if err != nil {
+			continue
+		}
+		if !dirContains(absRepoDir, dir) {
+			continue
+		}
+		// Prefer the longest matching directory so nested repos win over parents.
+		if len(absRepoDir) > bestMatchLength {
+			match = repo
+			bestMatchLength = len(absRepoDir)
+		}
+	}
+
+	return match
+}
+
+// dirContains reports whether dir is parent itself or a directory beneath it.
+// It compares whole path segments rather than raw strings, so a sibling that
+// merely shares a name prefix (/src/tix-other vs /src/tix) is not a match.
+func dirContains(parent, dir string) bool {
+	parent = filepath.Clean(parent)
+	dir = filepath.Clean(dir)
+	if dir == parent {
+		return true
+	}
+	if !strings.HasSuffix(parent, string(filepath.Separator)) {
+		parent += string(filepath.Separator)
+	}
+	return strings.HasPrefix(dir, parent)
+}
