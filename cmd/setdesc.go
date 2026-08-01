@@ -32,11 +32,11 @@ type RepoInfo struct {
 
 // Command flags
 var (
-	onlyIssue              bool
-	onlyMergeRequest       bool
-	onlyPullRequest        bool  // For GitHub users
-	useRAG                 *bool // Force RAG on/off, nil means auto-detect
-	setdescNonInteractive  bool
+	onlyIssue             bool
+	onlyMergeRequest      bool
+	onlyPullRequest       bool  // For GitHub users
+	useRAG                *bool // Force RAG on/off, nil means auto-detect
+	setdescNonInteractive bool
 )
 
 var setdescCmd = &cobra.Command{
