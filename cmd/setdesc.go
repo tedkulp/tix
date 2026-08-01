@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/pterm/pterm"
@@ -150,33 +149,14 @@ func selectRepository() (*RepoInfo, error) {
 
 	// Find repo that matches the current directory, or the best candidate
 	// Only consider code repos (repos with directory)
-	var matchingRepo *config.Repository
 	var repoName string
-	bestMatchLength := 0
 
 	repoNames := cfg.GetRepoNames()
-	for i, repo := range cfg.Repositories {
-		if !repo.IsCodeRepo() {
-			continue
-		}
-		absRepoDir, err := filepath.Abs(repo.Directory)
-		if err != nil {
-			continue
-		}
-
-		// Check if current directory is within the repo directory
-		if strings.HasPrefix(wd, absRepoDir) {
-			// If we found a better match (longer path prefix), use it
-			if len(absRepoDir) > bestMatchLength {
-				matchingRepo = &cfg.Repositories[i]
-				repoName = cfg.GetRepoNames()[i]
-				bestMatchLength = len(absRepoDir)
-			}
-		}
-	}
+	matchingRepo := cfg.FindRepoForDir(wd)
 
 	// If we found a match, we'll offer it as the default option
 	if matchingRepo != nil {
+		repoName = matchingRepo.Name
 		logger.Info("Found matching repository", map[string]any{
 			"repo":      repoName,
 			"directory": matchingRepo.Directory,

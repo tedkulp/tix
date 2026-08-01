@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -53,28 +52,11 @@ Exits with code 1 if the configuration or API calls fail.`,
 		}
 
 		// Find code repo matching the current directory
-		var matchingRepo *config.Repository
-		var repoName string
-		bestMatchLength := 0
-
-		for i, repo := range cfg.Repositories {
-			if !repo.IsCodeRepo() {
-				continue
-			}
-			absRepoDir, err := filepath.Abs(repo.Directory)
-			if err != nil {
-				continue
-			}
-			if strings.HasPrefix(wd, absRepoDir) && len(absRepoDir) > bestMatchLength {
-				matchingRepo = &cfg.Repositories[i]
-				repoName = repo.Name
-				bestMatchLength = len(absRepoDir)
-			}
-		}
-
+		matchingRepo := cfg.FindRepoForDir(wd)
 		if matchingRepo == nil {
 			return fmt.Errorf("no configured repository found for directory %s", wd)
 		}
+		repoName := matchingRepo.Name
 
 		logger.Debug("Code repo resolved", map[string]interface{}{"repo": repoName})
 
