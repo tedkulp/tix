@@ -1,7 +1,8 @@
-package utils
+package browser
 
 import (
-	"github.com/pkg/browser"
+	pkgbrowser "github.com/pkg/browser"
+
 	"github.com/tedkulp/tix/internal/logger"
 )
 
@@ -11,7 +12,7 @@ func OpenURL(url string) error {
 		"url": url,
 	})
 
-	err := browser.OpenURL(url)
+	err := pkgbrowser.OpenURL(url)
 	if err != nil {
 		logger.Warn("Failed to open browser", map[string]interface{}{
 			"error": err.Error(),
