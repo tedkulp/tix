@@ -14,6 +14,9 @@ import (
 	"github.com/tedkulp/tix/internal/utils"
 )
 
+// mrNonInteractive holds the --non-interactive/-n flag value.
+var mrNonInteractive bool
+
 var mrCmd = &cobra.Command{
 	Use:     "mr",
 	Aliases: []string{"pr"},
@@ -68,6 +71,10 @@ It will extract the issue number from the branch name and create a merge request
 
 			if len(codeRepoNames) == 0 {
 				return fmt.Errorf("no code repositories configured - add repositories with 'directory' field to your config file")
+			}
+
+			if mrNonInteractive {
+				return fmt.Errorf("--non-interactive requires an unambiguous repository; cd into a configured directory")
 			}
 
 			// Use pterm's interactive select component
@@ -230,4 +237,5 @@ func init() {
 	mrCmd.Flags().BoolP("draft", "d", false, "Create the merge request as a draft")
 	mrCmd.Flags().StringP("remote", "r", "origin", "Git remote to push to")
 	mrCmd.Flags().BoolP("auto-merge", "a", false, "Enable auto-merge when the pipeline succeeds")
+	mrCmd.Flags().BoolVarP(&mrNonInteractive, "non-interactive", "n", false, "Skip all interactive prompts; requires an unambiguous repository")
 }
