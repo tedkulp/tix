@@ -1,12 +1,26 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/tedkulp/tix/internal/browser"
 	"github.com/tedkulp/tix/internal/logger"
 )
+
+// apiTimeout bounds how long a single SCM API call (GitHub or GitLab) may
+// block before it is canceled, so a hung network call or proxy doesn't wedge
+// the CLI indefinitely.
+const apiTimeout = 30 * time.Second
+
+// newAPIContext returns a context bounded by apiTimeout for a single SCM API
+// call. Callers must invoke the returned cancel func (typically via defer)
+// once the call completes.
+func newAPIContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), apiTimeout)
+}
 
 // openURL opens a URL in the default browser. It is a variable so tests can
 // replace it with a stub instead of launching a real browser.

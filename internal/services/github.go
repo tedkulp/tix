@@ -83,7 +83,9 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 
 	// Self-assign if requested
 	if selfAssign {
-		user, _, err := p.client.Users.Get(context.Background(), "")
+		ctx, cancel := newAPIContext()
+		user, _, err := p.client.Users.Get(ctx, "")
+		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current user: %w", err)
 		}
@@ -93,7 +95,9 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 	// Note: milestoneTitle parameter is ignored for GitHub issues since we're
 	// only implementing GitLab milestone support per requirements
 
-	result, _, err := p.client.Issues.Create(context.Background(), p.owner, p.repo, issue)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+	result, _, err := p.client.Issues.Create(ctx, p.owner, p.repo, issue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue: %w", err)
 	}
@@ -106,7 +110,8 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 
 // GetOpenPullRequestsForIssue returns all open pull requests related to an issue
 func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubPullRequest, error) {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 
 	// Get timeline events for the issue to find linked PRs
 	events, _, err := p.client.Issues.ListIssueTimeline(ctx, p.owner, p.repo, issueNumber, nil)
@@ -149,7 +154,8 @@ func (p *GithubProject) GetOpenPullRequestsForIssue(issueNumber int) ([]*GithubP
 
 // GetOpenPullRequestsByBranch returns all open pull requests for a specific head branch
 func (p *GithubProject) GetOpenPullRequestsByBranch(branchName string) ([]*GithubPullRequest, error) {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 
 	// List PRs filtered by head branch
 	opts := &github.PullRequestListOptions{
@@ -192,14 +198,19 @@ func (p *GithubProject) CreatePullRequest(title, sourceBranch, targetBranch stri
 		Draft:               &isDraft,
 	}
 
-	result, _, err := p.client.PullRequests.Create(context.Background(), p.owner, p.repo, pr)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	result, _, err := p.client.PullRequests.Create(ctx, p.owner, p.repo, pr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pull request: %w", err)
 	}
 
 	// Apply labels after PR creation
 	if len(issueLabels) > 0 {
-		_, _, err = p.client.Issues.AddLabelsToIssue(context.Background(), p.owner, p.repo, *result.Number, issueLabels)
+		labelCtx, labelCancel := newAPIContext()
+		_, _, err = p.client.Issues.AddLabelsToIssue(labelCtx, p.owner, p.repo, *result.Number, issueLabels)
+		labelCancel()
 		if err != nil {
 			// Just log the error but don't fail
 			fmt.Printf("Warning: Failed to apply labels to pull request: %v\n", err)
@@ -252,7 +263,10 @@ func (p *GithubProject) EnableAutoMerge(prNodeID string) error {
 		return fmt.Errorf("failed to marshal GraphQL request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", "https://api.github.com/graphql", bytes.NewBuffer(jsonData))
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.github.com/graphql", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -292,7 +306,11 @@ func (p *GithubProject) GetPullRequestDiff(prNumber int) (string, error) {
 	// Create HTTP client with token
 	client := &http.Client{}
 	diffURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", p.owner, p.repo, prNumber)
-	req, err := http.NewRequest("GET", diffURL, nil)
+
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", diffURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -319,7 +337,8 @@ func (p *GithubProject) GetPullRequestDiff(prNumber int) (string, error) {
 
 // UpdatePullRequestDescription updates the description of a pull request
 func (p *GithubProject) UpdatePullRequestDescription(prNumber int, description string) error {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 
 	// Get current PR to preserve metadata
 	pr, _, err := p.client.PullRequests.Get(ctx, p.owner, p.repo, prNumber)
@@ -359,7 +378,8 @@ func (p *GithubProject) UpdatePullRequestDescription(prNumber int, description s
 
 // UpdateIssueDescription updates the description of an issue
 func (p *GithubProject) UpdateIssueDescription(issueNumber int, description string) error {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 
 	// Update the issue
 	updateIssue := &github.IssueRequest{
@@ -376,7 +396,8 @@ func (p *GithubProject) UpdateIssueDescription(issueNumber int, description stri
 
 // UpdateIssueTitle updates the title of an issue
 func (p *GithubProject) UpdateIssueTitle(issueNumber int, title string) error {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 
 	// Update the issue
 	updateIssue := &github.IssueRequest{
@@ -393,7 +414,8 @@ func (p *GithubProject) UpdateIssueTitle(issueNumber int, title string) error {
 
 // GetIssue returns an issue by its number
 func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 	issue, _, err := p.client.Issues.Get(ctx, p.owner, p.repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -420,7 +442,8 @@ func (p *GithubProject) GetIssue(issueNumber int) (*GithubIssue, error) {
 
 // AddLabelsToIssue adds labels to an existing issue
 func (p *GithubProject) AddLabelsToIssue(issueNumber int, labels []string) error {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 	_, _, err := p.client.Issues.AddLabelsToIssue(ctx, p.owner, p.repo, issueNumber, labels)
 	if err != nil {
 		return fmt.Errorf("failed to add labels to issue: %w", err)
@@ -430,7 +453,8 @@ func (p *GithubProject) AddLabelsToIssue(issueNumber int, labels []string) error
 
 // RemoveLabelsFromIssue removes labels from an existing issue
 func (p *GithubProject) RemoveLabelsFromIssue(issueNumber int, labels []string) error {
-	ctx := context.Background()
+	ctx, cancel := newAPIContext()
+	defer cancel()
 	for _, label := range labels {
 		_, err := p.client.Issues.RemoveLabelForIssue(ctx, p.owner, p.repo, issueNumber, label)
 		if err != nil {
