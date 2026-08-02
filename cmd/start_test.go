@@ -1,8 +1,13 @@
 package cmd
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tedkulp/tix/internal/config"
 )
 
 func TestStartNoAutoStashFlag(t *testing.T) {
@@ -63,4 +68,57 @@ func TestStartNonInteractiveAmbiguousRepo(t *testing.T) {
 	// start_test runs pass when startNonInteractive is false (no ambiguity guard
 	// fires on happy path with zero args — already covered by RequiresIssueNumber).
 	_ = startNonInteractive // flag is set; verified registered in TestStartNonInteractiveFlag
+}
+
+// TestStartRejectsZeroIssueNumber reproduces issue #11: `issueNumber == 0` was
+// used as a sentinel for "not yet provided", but 0 is also what
+// strconv.Atoi("0") returns for an explicit `tix start 0`. That let a literal
+// zero (or any negative number) slip past validation and reach the SCM API,
+// producing a cryptic "issue #0 not found" error instead of a clear one.
+func TestStartRejectsZeroIssueNumber(t *testing.T) {
+	dir := t.TempDir()
+
+	runGit := func(args ...string) {
+		c := exec.Command("git", args...)
+		c.Dir = dir
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+	runGit("init", "-b", "main")
+	runGit("config", "user.email", "test@example.com")
+	runGit("config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("x"), 0o644); err != nil {
+		t.Fatalf("write README: %v", err)
+	}
+	runGit("add", "README.md")
+	runGit("commit", "-m", "init")
+
+	configPath := filepath.Join(dir, ".tix.yml")
+	configContents := "repositories:\n" +
+		"  - name: test-repo\n" +
+		"    directory: " + dir + "\n" +
+		"    github_repo: someone/somewhere\n"
+	if err := os.WriteFile(configPath, []byte(configContents), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	config.SetConfigFile(configPath)
+	defer config.SetConfigFile("")
+
+	origWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("os.Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("os.Chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origWd) }()
+
+	runErr := startCmd.RunE(startCmd, []string{"0"})
+	if runErr == nil {
+		t.Fatal("expected error for issue number 0, got nil")
+	}
+	if !strings.Contains(runErr.Error(), "invalid issue number: 0") {
+		t.Errorf("unexpected error: %s", runErr.Error())
+	}
 }
