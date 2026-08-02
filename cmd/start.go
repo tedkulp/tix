@@ -153,6 +153,10 @@ If the issue is from a different repo, the branch name will include the project 
 			}
 		}
 
+		if issueNumber <= 0 {
+			return fmt.Errorf("invalid issue number: %d - issue numbers start at 1", issueNumber)
+		}
+
 		// Determine issue repo
 		var issueRepo *config.Repository
 		var issueRepoName string
