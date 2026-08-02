@@ -264,7 +264,7 @@ func setupRepository(cfg *config.Settings, issueRepoArg, codeRepoArg string) (*R
 			"github_repo": selectedRepo.GithubRepo,
 			"gitlab_repo": selectedRepo.GitlabRepo,
 		})
-		return nil, fmt.Errorf("repository must have exactly one of github_repo or gitlab_repo... %+v", selectedRepo)
+		return nil, fmt.Errorf("repository '%s' must have exactly one of github_repo or gitlab_repo configured", selectedRepoName)
 	}
 
 	// Create appropriate provider
