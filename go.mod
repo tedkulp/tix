@@ -16,9 +16,6 @@ require (
 	golang.org/x/oauth2 v0.28.0
 )
 
-// Use gitlab.com/gitlab-org/api/client-go as the source for github.com/xanzy/go-gitlab
-replace github.com/xanzy/go-gitlab => gitlab.com/gitlab-org/api/client-go v0.115.0
-
 require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
