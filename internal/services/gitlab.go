@@ -610,9 +610,17 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 	}
 
 	// Make GraphQL request
-	err = p.executeGraphQLRequest(request)
+	response, err := p.executeGraphQLRequestWithResponse(request)
 	if err != nil {
 		return fmt.Errorf("failed to update work item status: %w", err)
+	}
+
+	// GitLab reports business-logic failures (e.g. an invalid status
+	// transition) inside the workItemUpdate payload's own "errors" field,
+	// even when the request succeeds at the transport level with no
+	// top-level GraphQL errors. Check for those too.
+	if mutationErrs := extractWorkItemUpdateErrors(response); len(mutationErrs) > 0 {
+		return fmt.Errorf("failed to update work item status: %s", strings.Join(mutationErrs, "; "))
 	}
 
 	logger.Debug("Issue status updated successfully", map[string]any{
@@ -674,10 +682,28 @@ func (p *GitlabProject) getStatusID(statusName string) (string, error) {
 	return statusID, nil
 }
 
-// executeGraphQLRequest executes a GraphQL request and checks for errors
-func (p *GitlabProject) executeGraphQLRequest(request GraphQLRequest) error {
-	_, err := p.executeGraphQLRequestWithResponse(request)
-	return err
+// extractWorkItemUpdateErrors pulls the mutation-level errors out of a
+// workItemUpdate GraphQL response. GitLab reports business-logic failures
+// there (as a plain []string on the payload) separately from the top-level
+// GraphQL "errors" array that executeGraphQLRequestWithResponse already checks.
+func extractWorkItemUpdateErrors(data map[string]any) []string {
+	payload, ok := data["workItemUpdate"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	rawErrors, ok := payload["errors"].([]any)
+	if !ok {
+		return nil
+	}
+
+	var errs []string
+	for _, e := range rawErrors {
+		if msg, ok := e.(string); ok && msg != "" {
+			errs = append(errs, msg)
+		}
+	}
+	return errs
 }
 
 // executeGraphQLRequestWithResponse executes a GraphQL request and returns the response
