@@ -88,10 +88,13 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 		return 0, nil
 	}
 
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// List project milestones to find the one with matching title
 	milestones, _, err := p.client.Milestones.ListMilestones(p.pid, &gitlab.ListMilestonesOptions{
 		Title: &title,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("failed to list project milestones: %w", err)
 	}
@@ -106,7 +109,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 	}
 
 	// Get project details to find the group
-	project, _, err := p.client.Projects.GetProject(p.pid, nil)
+	project, _, err := p.client.Projects.GetProject(p.pid, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("failed to get project details: %w", err)
 	}
@@ -124,7 +127,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 		groupMilestones, _, err := p.client.GroupMilestones.ListGroupMilestones(groupID, &gitlab.ListGroupMilestonesOptions{
 			Title:            &title,
 			IncludeAncestors: &includeAncestors,
-		})
+		}, gitlab.WithContext(ctx))
 		if err != nil {
 			return 0, fmt.Errorf("failed to list group milestones: %w", err)
 		}
@@ -143,7 +146,7 @@ func (p *GitlabProject) GetMilestoneID(title string) (int, error) {
 	// Otherwise, create the milestone at project level
 	milestone, _, err := p.client.Milestones.CreateMilestone(p.pid, &gitlab.CreateMilestoneOptions{
 		Title: &title,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("failed to create milestone: %w", err)
 	}
@@ -166,9 +169,12 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 		Labels: &labelsOpt,
 	}
 
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Self-assign if requested
 	if selfAssign {
-		user, _, err := p.client.Users.CurrentUser()
+		user, _, err := p.client.Users.CurrentUser(gitlab.WithContext(ctx))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current user: %w", err)
 		}
@@ -187,7 +193,7 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 		}
 	}
 
-	result, _, err := p.client.Issues.CreateIssue(p.pid, opt)
+	result, _, err := p.client.Issues.CreateIssue(p.pid, opt, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create issue: %w", err)
 	}
@@ -207,7 +213,10 @@ func (p *GitlabProject) GetOpenMergeRequestsByBranch(branchName string) ([]*Gitl
 		State:        gitlab.Ptr("opened"),
 	}
 
-	mrs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	mrs, _, err := p.client.MergeRequests.ListProjectMergeRequests(p.pid, opts, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get merge requests for branch: %w", err)
 	}
@@ -228,9 +237,12 @@ func (p *GitlabProject) GetOpenMergeRequestsByBranch(branchName string) ([]*Gitl
 
 // GetOpenMergeRequestsForIssue returns all open merge requests related to an issue
 func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMergeRequest, error) {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Use GitLab's API to get MRs related to this issue
 	// This includes MRs that mention the issue in any way, not just those that close it
-	mrs, _, err := p.client.Issues.ListMergeRequestsRelatedToIssue(p.pid, issueID, nil)
+	mrs, _, err := p.client.Issues.ListMergeRequestsRelatedToIssue(p.pid, issueID, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get merge requests for issue: %w", err)
 	}
@@ -254,7 +266,10 @@ func (p *GitlabProject) GetOpenMergeRequestsForIssue(issueID int) ([]*GitlabMerg
 
 // GetIssue returns an issue by its number
 func (p *GitlabProject) GetIssue(issueNumber int) (*GitlabIssue, error) {
-	issue, _, err := p.client.Issues.GetIssue(p.pid, issueNumber)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueNumber, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
 	}
@@ -309,7 +324,10 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 		opt.MilestoneID = &options.MilestoneID
 	}
 
-	result, _, err := p.client.MergeRequests.CreateMergeRequest(p.pid, opt)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	result, _, err := p.client.MergeRequests.CreateMergeRequest(p.pid, opt, gitlab.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create merge request: %w", err)
 	}
@@ -333,10 +351,13 @@ func (p *GitlabProject) CreateMergeRequest(title, sourceBranch, targetBranch str
 
 // EnableAutoMerge sets the MR to merge automatically when its pipeline succeeds
 func (p *GitlabProject) EnableAutoMerge(mrIID int) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	mergeWhenPipelineSucceeds := true
 	_, _, err := p.client.MergeRequests.AcceptMergeRequest(p.pid, mrIID, &gitlab.AcceptMergeRequestOptions{
 		MergeWhenPipelineSucceeds: &mergeWhenPipelineSucceeds,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to enable auto-merge: %w", err)
 	}
@@ -345,8 +366,11 @@ func (p *GitlabProject) EnableAutoMerge(mrIID int) error {
 
 // GetMergeRequestDiff returns the diff of a merge request
 func (p *GitlabProject) GetMergeRequestDiff(mrIID int) (string, error) {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Get all versions of the merge request diffs
-	versions, _, err := p.client.MergeRequests.GetMergeRequestDiffVersions(p.pid, mrIID, nil)
+	versions, _, err := p.client.MergeRequests.GetMergeRequestDiffVersions(p.pid, mrIID, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("failed to get merge request diff versions: %w", err)
 	}
@@ -357,7 +381,7 @@ func (p *GitlabProject) GetMergeRequestDiff(mrIID int) (string, error) {
 
 	// Get the latest version
 	latestVersion := versions[0].ID
-	diff, _, err := p.client.MergeRequests.GetSingleMergeRequestDiffVersion(p.pid, mrIID, latestVersion, nil)
+	diff, _, err := p.client.MergeRequests.GetSingleMergeRequestDiffVersion(p.pid, mrIID, latestVersion, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return "", fmt.Errorf("failed to get merge request diff: %w", err)
 	}
@@ -375,8 +399,11 @@ func (p *GitlabProject) GetMergeRequestDiff(mrIID int) (string, error) {
 
 // UpdateMergeRequestDescription updates the description of a merge request
 func (p *GitlabProject) UpdateMergeRequestDescription(mrIID int, description string) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Keep the "Closes #X" reference if it exists
-	existingMR, _, err := p.client.MergeRequests.GetMergeRequest(p.pid, mrIID, nil)
+	existingMR, _, err := p.client.MergeRequests.GetMergeRequest(p.pid, mrIID, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to get merge request: %w", err)
 	}
@@ -401,7 +428,7 @@ func (p *GitlabProject) UpdateMergeRequestDescription(mrIID int, description str
 	// Update merge request
 	_, _, err = p.client.MergeRequests.UpdateMergeRequest(p.pid, mrIID, &gitlab.UpdateMergeRequestOptions{
 		Description: &updatedDescription,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to update merge request description: %w", err)
 	}
@@ -411,10 +438,13 @@ func (p *GitlabProject) UpdateMergeRequestDescription(mrIID int, description str
 
 // UpdateIssueDescription updates the description of an issue
 func (p *GitlabProject) UpdateIssueDescription(issueIID int, description string) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Update issue
 	_, _, err := p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
 		Description: &description,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to update issue description: %w", err)
 	}
@@ -424,10 +454,13 @@ func (p *GitlabProject) UpdateIssueDescription(issueIID int, description string)
 
 // UpdateIssueTitle updates the title of an issue
 func (p *GitlabProject) UpdateIssueTitle(issueIID int, title string) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Update issue
 	_, _, err := p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
 		Title: &title,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to update issue title: %w", err)
 	}
@@ -437,8 +470,11 @@ func (p *GitlabProject) UpdateIssueTitle(issueIID int, title string) error {
 
 // AddLabelsToIssue adds labels to an existing issue
 func (p *GitlabProject) AddLabelsToIssue(issueIID int, labels []string) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Get current issue to preserve existing labels
-	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil)
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
@@ -463,7 +499,7 @@ func (p *GitlabProject) AddLabelsToIssue(issueIID int, labels []string) error {
 	labelsOpt := gitlab.LabelOptions(allLabels)
 	_, _, err = p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
 		Labels: &labelsOpt,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to add labels to issue: %w", err)
 	}
@@ -473,8 +509,11 @@ func (p *GitlabProject) AddLabelsToIssue(issueIID int, labels []string) error {
 
 // RemoveLabelsFromIssue removes labels from an existing issue
 func (p *GitlabProject) RemoveLabelsFromIssue(issueIID int, labels []string) error {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Get current issue to get existing labels
-	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil)
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, nil, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to get issue: %w", err)
 	}
@@ -497,7 +536,7 @@ func (p *GitlabProject) RemoveLabelsFromIssue(issueIID int, labels []string) err
 	labelsOpt := gitlab.LabelOptions(filteredLabels)
 	_, _, err = p.client.Issues.UpdateIssue(p.pid, issueIID, &gitlab.UpdateIssueOptions{
 		Labels: &labelsOpt,
-	})
+	}, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to remove labels from issue: %w", err)
 	}
@@ -518,7 +557,10 @@ func (p *GitlabProject) UpdateIssueStatus(issueIID int, status string) error {
 	}
 
 	// First, get the issue's global ID using REST API
-	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID)
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	issue, _, err := p.client.Issues.GetIssue(p.pid, issueIID, gitlab.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("failed to get issue for status update: %w", err)
 	}
@@ -651,8 +693,11 @@ func (p *GitlabProject) executeGraphQLRequestWithResponse(request GraphQLRequest
 		return nil, fmt.Errorf("failed to marshal GraphQL request: %w", err)
 	}
 
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
 	// Create HTTP request to GitLab GraphQL endpoint
-	req, err := http.NewRequest("POST", "https://gitlab.com/api/graphql", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://gitlab.com/api/graphql", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GraphQL request: %w", err)
 	}

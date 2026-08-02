@@ -4,9 +4,28 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/tedkulp/tix/internal/browser"
 )
+
+// TestNewAPIContextHasDeadline reproduces the fix for issue #9: SCM API
+// calls previously used context.Background(), which never times out, so a
+// hung network call blocked the CLI indefinitely.
+func TestNewAPIContextHasDeadline(t *testing.T) {
+	ctx, cancel := newAPIContext()
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected context to have a deadline, got none")
+	}
+
+	remaining := time.Until(deadline)
+	if remaining <= 0 || remaining > apiTimeout {
+		t.Errorf("expected deadline within (0, %s], got %s", apiTimeout, remaining)
+	}
+}
 
 // stubOpenURL replaces the browser opener for the duration of a test and
 // returns the slice that records the URLs it was called with.
