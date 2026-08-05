@@ -70,6 +70,12 @@ If the issue is from a different repo, the branch name will include the project 
 			return fmt.Errorf("too many arguments. Usage: tix start [project] [issue-number]")
 		}
 
+		// An explicitly supplied issue number is validated up front so bad input
+		// fails immediately instead of after the repository prompts.
+		if len(args) > 0 && issueNumber <= 0 {
+			return fmt.Errorf("invalid issue number: %d - issue numbers start at 1", issueNumber)
+		}
+
 		// Get current directory to find code repo
 		wd, err := os.Getwd()
 		if err != nil {
