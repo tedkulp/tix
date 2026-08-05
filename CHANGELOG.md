@@ -7,23 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-05
+
+### Added
+
+- `--non-interactive` / `-n` flag on `tix mr` to skip all interactive prompts and accept defaults
+
+### Changed
+
+- AI description generation now uses a newer OpenAI model
+- All GitHub and GitLab API calls are now bounded by a 30s timeout instead of hanging indefinitely
+
+### Fixed
+
+- GitLab: `tix setdesc` and `tix ready` now report errors returned inside the `workItemUpdate` mutation payload, not just top-level GraphQL errors (previously these failures were reported as success)
+- `tix start` now rejects issue number `0` and negative numbers instead of calling the API with an invalid reference, and does so before prompting for a repository rather than after
+- Repository lookup now resolves symlinks on both the configured `directory` and the working directory, so a repo reached through a symlinked path is matched instead of failing with "no configured repository found" (or falling back to a repository prompt)
+- `tix create` error messages no longer leak internal repository struct details
+- `tix mr` now downloads the PR diff with the bearer auth scheme, matching the GraphQL call (fixes 401s on GitHub)
+- Blank entries are filtered out of the labels sent to GitHub/GitLab when creating an issue
+- No longer panics on labels without a name in `GetIssue`
+- `tix status --json` returns a proper error for a non-ticket branch instead of exiting with code 1 mid-output
+- The browser now opens after MR creation
+- `--config` / `-c` is honored for the config file path
+
 ## [0.9.1] - 2026-06-26
 
 ### Fixed
+
 - `tix mr` now uses the full cross-repo issue reference (e.g. `group/project#225`) in the merge request title when the linked issue lives in another repo, matching the `Closes …` line in the description (previously the title used the bare `#225`)
 
 ## [0.9.0] - 2026-06-04
 
 ### Added
+
 - `tix status` command: shows the current branch's linked issue, labels, milestone, and MR state, and suggests the next workflow step (`tix mr`, `tix setdesc`, or `tix ready`); supports `--json` / `-j` for machine-readable output
 - `--non-interactive` / `-n` flag on `tix setdesc` to skip all interactive prompts and accept defaults
 
 ### Fixed
+
 - Error messages now route through the structured logger in verbose mode (`-v`/`-vv`) and print once to stderr in normal mode (previously printed twice)
 
 ## [0.8.0] - 2026-06-01
 
 ### Added
+
 - `--auto-merge` / `-a` flag on `tix mr` to enable auto-merge when the pipeline succeeds (GitHub: squash merge via GraphQL; GitLab: merge when pipeline succeeds)
 - `--non-interactive` flag on `tix create` and `tix start` to bypass all interactive selectors and prompts
 - Auto-stash of dirty changes in `tix create` and `tix start`; `--no-auto-stash` flag to opt out
@@ -31,67 +59,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.7.2] - 2026-05-14
 
 ### Added
+
 - `tix cleanup` now shows an interactive worktree list when run from a repo's main directory (not inside a worktree)
 - On removal failure, prompt to retry with `--force` rather than hard-failing
 - `--force` / `-f` flag now skips the text confirmation prompt entirely
 
 ### Fixed
+
 - `tix cleanup` no longer shows worktrees from the wrong project when run from a repo's root directory
 - Skip redundant branch name text prompt after selecting from the interactive list
 
 ## [0.7.1] - 2026-03-15
 
 ### Fixed
+
 - `tix ready` and `tix unready` now correctly detect the current branch when run from inside a git worktree directory
 - Removed unused `GetCurrentBranch` method from git package
 
 ### Changed
+
 - Migrated from Makefile to `just` (justfile) as the primary task runner; Makefile now proxies to `just`
 
 ## [0.7.0] - 2026-03-10
 
 ### Added
+
 - `--worktree` / `-w` flag on `tix create` and `tix start` to create a git worktree instead of checking out a branch in the current directory
 - `tix cleanup` command to remove a git worktree (branch is preserved)
 - Worktree path and default branch configurable globally and per-repository via `worktree.path` and `worktree.default_branch`
 
 ### Changed
+
 - Worktree support is now opt-in per invocation rather than a static per-repo config toggle; removed `worktree.enabled` config field
 - `tix mr`, `tix setdesc` now correctly detect the current branch when run from inside a git worktree directory
 
 ### Fixed
+
 - `tix mr` and `tix setdesc` read the main repo HEAD (always `main`) when invoked from a worktree subdirectory; now use `git branch --show-current` from the working directory
 
 ## [0.6.5] - 2026-02-04
 
 ### Fixed
+
 - Fixed cross-repository MR/PR lookup in `setdesc` and `mr` commands by using branch-based search instead of issue-based search when the issue exists in a different repository than the code
 
 ## [0.6.4] - 2026-01-30
 
 ### Fixed
+
 - Fixed issue description generation in `setdesc` command by using valid OpenAI model constant (GPT-5 Mini) instead of invalid GPT4o constant
 - Fixed `ready` and `unready` commands failing with GraphQL internal server error by removing deprecated IssueType parameter from workItemTypes query
 
 ## [0.6.3] - 2026-01-15
 
 ### Changed
+
 - Made AI-generated MR descriptions more concise, limiting each section to 1-5 bullet points instead of exhaustive lists
 - Updated OpenAI prompts to focus on significant changes and skip obvious implementation details
 
 ## [0.6.2] - 2025-12-10
 
 ### Fixed
+
 - Updated golangci-lint configuration to version 2 format
 - Fixed linting errors across multiple files
 - Code formatting and linting compliance improvements
 
 ### Changed
+
 - Added `make lint-fix` target for automatically fixing linting issues
 
 ## [0.6.1] - 2025-12-09
 
 ### Fixed
+
 - `setdesc` command now uses GitLab's `related_merge_requests` API for efficient MR lookup instead of fetching all open MRs
 - GitHub PR lookup now uses timeline API to find linked PRs instead of searching through all open PRs
 - Significantly improved performance when working with repositories that have many open MRs/PRs
@@ -99,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.6.0] - 2025-12-02
 
 ### Added
+
 - `start` command to create branches from existing issues (supports cross-repo)
 - Cross-repository issue linking with `project-123-branch-name` format
 - Support for issue-only repositories (optional `directory` in config)
@@ -106,18 +148,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive and argument-based workflows for `start` and `create` commands
 
 ### Changed
+
 - Branch name parsing now supports optional project prefix
 - `create` command can now specify issue and code repositories as arguments
 - `mr`, `setdesc`, `ready`, and `unready` commands handle cross-repo scenarios
 - Improved acronym handling in branch name generation (e.g., "IRSA" → "irsa")
 
 ### Fixed
+
 - Panic when `directory` field is empty in repository configuration
 - Repository selector defaulting in `create` command
 
 ## [0.5.0] - 2025-11-11
 
 ### Changed
+
 - **BREAKING**: Migrated from deprecated OpenAI Assistants API to RAG (Retrieval-Augmented Generation) with embeddings
   - Automatically handles large diffs that exceed context windows
   - Uses `text-embedding-3-small` model for cost-effective embeddings
@@ -126,22 +171,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated OpenAI library to latest version
 
 ### Added
+
 - New `--use-rag` flag for `setdesc` command to force RAG on/off for testing
 - Comprehensive test suite for embeddings and vector search functionality
 - Shared prompt builders for consistent AI generation across approaches
 
 ### Removed
+
 - Deprecated OpenAI Assistants API resources (threads, assistants, file uploads)
 - Manual resource setup/cleanup in `setdesc` command
 
 ## [0.4.1] - 2024
 
 ### Changed
+
 - Updated OpenAI library dependency
 
 ## [0.4.0] - 2024
 
 ### Added
+
 - `ready` command to mark issues as ready for review with configurable labels and status
 - `unready` command to mark issues as not ready with optional unready labels
 - GitLab issue status updates via GraphQL API
@@ -150,6 +199,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Global default configurations for ready/unready labels and status
 
 ### Changed
+
 - Enhanced logging with granular levels (WARN/INFO/DEBUG)
 - Improved error messages and user feedback
 - Refactored issue and merge request handling for better code organization
@@ -157,18 +207,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2024
 
 ### Added
+
 - `setdesc` command to generate AI-powered descriptions for merge requests and issues
 - OpenAI integration for automated description generation
 - Support for both merge request and issue description updates
 - Selective description updates with `--only-issue` and `--only-mr` flags
 
 ### Changed
+
 - Enhanced interactive prompts for better user experience
 - Improved merge request and issue handling
 
 ## [0.2.1] - 2024
 
 ### Fixed
+
 - Build date variable in Makefile
 - GoReleaser pipeline configurations
 - Minor bug fixes and improvements
@@ -176,18 +229,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2024
 
 ### Added
+
 - Merge request/pull request creation functionality (`mr` command)
 - Draft merge request/pull request support with `--draft` flag
 - Remote repository selection with `--remote` flag
 - Support for both GitHub and GitLab merge/pull requests
 
 ### Changed
+
 - Enhanced issue creation with better validation
 - Improved versioning system
 
 ## [0.1.0] - 2024
 
 ### Added
+
 - Initial release
 - `create` command for creating tickets and branches
 - Support for both GitHub and GitLab repositories
@@ -203,12 +259,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Homebrew tap support
 
 ### Infrastructure
+
 - GitHub Actions workflow for automated releases
 - golangci-lint configuration
 - Comprehensive test suite
 - Makefile for common development tasks
 
-[Unreleased]: https://github.com/tedkulp/tix/compare/v0.7.2...HEAD
+[Unreleased]: https://github.com/tedkulp/tix/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/tedkulp/tix/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/tedkulp/tix/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/tedkulp/tix/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/tedkulp/tix/compare/v0.7.2...v0.8.0
 [0.7.2]: https://github.com/tedkulp/tix/compare/v0.7.1...v0.7.2
 [0.7.1]: https://github.com/tedkulp/tix/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/tedkulp/tix/compare/v0.6.5...v0.7.0
@@ -225,4 +286,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/tedkulp/tix/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/tedkulp/tix/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/tedkulp/tix/releases/tag/v0.1.0
-
