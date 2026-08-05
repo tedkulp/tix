@@ -128,7 +128,7 @@ func GenerateMRDescriptionWithOptions(ctx context.Context, client *openai.Client
 // generateMRDescriptionDirect generates a description directly without RAG for small diffs
 func generateMRDescriptionDirect(ctx context.Context, client *openai.Client, diff string) (string, error) {
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT5Mini,
+		Model: "gpt-5.6-luna",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -209,7 +209,7 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 
 	// Step 7: Generate description using retrieved context
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT5Mini,
+		Model: "gpt-5.6-luna",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -265,7 +265,7 @@ func GenerateIssueDescriptionWithOptions(ctx context.Context, client *openai.Cli
 // generateIssueDescriptionDirect generates an issue description directly without RAG for small diffs
 func generateIssueDescriptionDirect(ctx context.Context, client *openai.Client, diff string, currentTitle string) (string, string, error) {
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT5Mini,
+		Model: "gpt-5.6-luna",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
@@ -354,7 +354,7 @@ Focus on the business logic changes, the intended behavior, and the motivation f
 
 	// Step 7: Generate issue description using retrieved context
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: openai.GPT5Mini,
+		Model: "gpt-5.6-luna",
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
