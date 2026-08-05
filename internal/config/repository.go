@@ -170,16 +170,18 @@ func (s *Settings) FindRepoForDir(dir string) *Repository {
 	var match *Repository
 	bestMatchLength := 0
 
+	// Both sides are symlink-resolved so a configured directory reached through
+	// a symlink still matches the working directory the OS reports (on macOS,
+	// for example, /tmp resolves to /private/tmp).
+	resolvedDir := resolveDir(dir)
+
 	for i := range s.Repositories {
 		repo := &s.Repositories[i]
 		if !repo.IsCodeRepo() {
 			continue
 		}
-		absRepoDir, err := filepath.Abs(repo.Directory)
-		if err != nil {
-			continue
-		}
-		if !dirContains(absRepoDir, dir) {
+		absRepoDir := resolveDir(repo.Directory)
+		if !dirContains(absRepoDir, resolvedDir) {
 			continue
 		}
 		// Prefer the longest matching directory so nested repos win over parents.
@@ -190,6 +192,21 @@ func (s *Settings) FindRepoForDir(dir string) *Repository {
 	}
 
 	return match
+}
+
+// resolveDir makes dir absolute and resolves any symlinks in it. A path that
+// cannot be resolved (most often because it does not exist yet) is returned
+// absolute but unresolved, so matching still works for such directories.
+func resolveDir(dir string) string {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return filepath.Clean(dir)
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return abs
+	}
+	return resolved
 }
 
 // dirContains reports whether dir is parent itself or a directory beneath it.
