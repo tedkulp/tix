@@ -95,9 +95,11 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 		}
 
 		// Generate and update descriptions based on flags
+		mrUpdated := false
 		if !onlyIssue {
 			// Generate and update MR description
-			if err := generateAndUpdateMRDescription(cmd.Context(), client, repoInfo, mrInfo, useRAG); err != nil {
+			updated, err := generateAndUpdateMRDescription(cmd.Context(), client, repoInfo, mrInfo, useRAG)
+			if err != nil {
 				if strings.Contains(err.Error(), "failed to generate") {
 					return fmt.Errorf("failed to generate description with OpenAI - try again or check API usage limits")
 				}
@@ -106,6 +108,7 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 				}
 				return err
 			}
+			mrUpdated = updated
 		}
 
 		if !updateMROnly {
@@ -119,6 +122,12 @@ GitHub users can also use --only-pr (-p) as an alternative.`,
 				}
 				return err
 			}
+		}
+
+		// Print the merge request URL last so it isn't buried between the merge
+		// request and issue output
+		if mrUpdated {
+			fmt.Printf("Merge request URL: %s\n", mrInfo.WebURL)
 		}
 
 		logger.Info("Setdesc command completed successfully")
@@ -388,13 +397,15 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 }
 
 // generateAndUpdateMRDescription generates and updates the merge request description
-func generateAndUpdateMRDescription(ctx context.Context, client *openai.Client, repoInfo *RepoInfo, mrInfo *services.MRInfo, forceRAG *bool) error {
+// It reports whether the description was actually updated so the caller can
+// print the merge request URL after any issue output.
+func generateAndUpdateMRDescription(ctx context.Context, client *openai.Client, repoInfo *RepoInfo, mrInfo *services.MRInfo, forceRAG *bool) (bool, error) {
 	fmt.Println("Generating merge request description...")
 
 	// Generate the description
 	mrDescription, err := services.GenerateMRDescriptionWithOptions(ctx, client, mrInfo.Diff, forceRAG)
 	if err != nil {
-		return fmt.Errorf("failed to generate merge request description: %w", err)
+		return false, fmt.Errorf("failed to generate merge request description: %w", err)
 	}
 
 	// Show the description and prompt for confirmation
@@ -410,22 +421,22 @@ func generateAndUpdateMRDescription(ctx context.Context, client *openai.Client, 
 			WithDefaultText("Do you want to update the merge request description?").
 			Show()
 		if err != nil {
-			return fmt.Errorf("cancelled updating merge request description")
+			return false, fmt.Errorf("cancelled updating merge request description")
 		}
 		if !result {
-			return nil
+			return false, nil
 		}
 	}
 
 	// Update the description using the provider
 	if err := repoInfo.DescriptionProvider.UpdateRequestDescription(mrInfo.SelectedID, mrDescription); err != nil {
-		return fmt.Errorf("failed to update merge request description: %w", err)
+		return false, fmt.Errorf("failed to update merge request description: %w", err)
 	}
 
 	fmt.Println("Merge request description updated successfully!")
-	fmt.Printf("Merge request URL: %s\n\n", mrInfo.WebURL)
+	fmt.Println()
 
-	return nil
+	return true, nil
 }
 
 // generateAndUpdateIssueDescription generates and updates the issue description

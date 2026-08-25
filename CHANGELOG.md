@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-25
+
+### Changed
+
+- `tix setdesc` now prints the merge request URL after the issue output instead of between the merge request and issue sections
+
 ## [0.10.0] - 2026-08-05
 
 ### Added
@@ -265,7 +271,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite
 - Makefile for common development tasks
 
-[Unreleased]: https://github.com/tedkulp/tix/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/tedkulp/tix/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/tedkulp/tix/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/tedkulp/tix/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/tedkulp/tix/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/tedkulp/tix/compare/v0.8.0...v0.9.0
