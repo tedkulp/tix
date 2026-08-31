@@ -58,78 +58,55 @@ func InitLogger(verboseCount int) {
 	initialized = true
 }
 
+// emit applies fields to an event and writes it. Callers pass the variadic
+// fields slice straight through; only the first map is used.
+func emit(ev *zerolog.Event, msg string, fields []map[string]interface{}) {
+	if len(fields) > 0 && fields[0] != nil {
+		for k, v := range fields[0] {
+			ev = ev.Interface(k, v)
+		}
+	}
+
+	ev.Msg(msg)
+}
+
 // Debug logs a debug message
 func Debug(msg string, fields ...map[string]interface{}) {
-	// Do nothing if logger is not initialized
 	if !initialized {
 		return
 	}
 
-	event := Logger.Debug().Str("level", "debug")
-
-	if len(fields) > 0 && fields[0] != nil {
-		for k, v := range fields[0] {
-			event = event.Interface(k, v)
-		}
-	}
-
-	event.Msg(msg)
+	emit(Logger.Debug(), msg, fields)
 }
 
 // Info logs an info message
 func Info(msg string, fields ...map[string]interface{}) {
-	// Do nothing if logger is not initialized
 	if !initialized {
 		return
 	}
 
-	event := Logger.Info().Str("level", "info")
-
-	if len(fields) > 0 && fields[0] != nil {
-		for k, v := range fields[0] {
-			event = event.Interface(k, v)
-		}
-	}
-
-	event.Msg(msg)
+	emit(Logger.Info(), msg, fields)
 }
 
 // Warn logs a warning message
 func Warn(msg string, fields ...map[string]interface{}) {
-	// Do nothing if logger is not initialized
 	if !initialized {
 		return
 	}
 
-	event := Logger.Warn().Str("level", "warn")
-
-	if len(fields) > 0 && fields[0] != nil {
-		for k, v := range fields[0] {
-			event = event.Interface(k, v)
-		}
-	}
-
-	event.Msg(msg)
+	emit(Logger.Warn(), msg, fields)
 }
 
 // Error logs an error message
 func Error(msg string, err error, fields ...map[string]interface{}) {
-	// Do nothing if logger is not initialized
 	if !initialized {
 		return
 	}
 
-	event := Logger.Error().Str("level", "error")
-
+	ev := Logger.Error()
 	if err != nil {
-		event = event.Err(err)
+		ev = ev.Err(err)
 	}
 
-	if len(fields) > 0 && fields[0] != nil {
-		for k, v := range fields[0] {
-			event = event.Interface(k, v)
-		}
-	}
-
-	event.Msg(msg)
+	emit(ev, msg, fields)
 }

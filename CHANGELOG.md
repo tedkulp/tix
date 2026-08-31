@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The logger's event-building body is written once. `Debug`, `Info`, `Warn` and `Error`
+  were four copies of the same bail-if-uninitialized, loop-the-fields, `Msg` sequence and
+  now share one `emit` helper. Each also wrote a redundant `level` field over the one
+  zerolog already stamps; that duplicate is gone, with no visible change since both values
+  always matched. The caller field, which has always reported `logger.go` rather than the
+  real call site, now reports one line in `logger.go` instead of one per level.
 - The three-level ready/unready fallback rule (override, then per-repo, then global) is
   written once as a `firstNonEmpty` helper instead of four times. `GetReadyLabel`,
   `GetReadyStatus`, `GetUnreadyLabel` and `GetUnreadyStatus` keep their names, signatures
