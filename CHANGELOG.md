@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IssueResult`, and the `IID` field they carried is gone. It always equaled `ID`.
 - Branch-name parsing coverage now targets `utils.ExtractIssueInfo` directly and asserts
   the project name it returns for cross-repo branches. Nothing tested that before.
+- `tix start` calls the shared `createBranch` helper instead of inlining the same
+  worktree-or-branch decision. The branch-naming rule (`project-123-title` versus
+  `123-title`) was written out in both files and now exists in one. `start` also picks up
+  the failure logging it was missing. Printed output is unchanged on every path.
 
 ### Removed
 

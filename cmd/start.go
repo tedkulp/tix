@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/tedkulp/tix/internal/git"
 	"github.com/tedkulp/tix/internal/logger"
 	"github.com/tedkulp/tix/internal/services"
-	"github.com/tedkulp/tix/internal/utils"
 )
 
 var (
@@ -215,19 +213,11 @@ If the issue is from a different repo, the branch name will include the project 
 			"title":  issue.Title,
 		})
 
-		// Generate branch name
-		var branchName string
+		// Use project prefix if issue repo differs from code repo
+		projectPrefix := ""
 		if projectName != "" && issueRepoName != codeRepoName {
-			// Cross-repo: use project prefix
-			branchName = fmt.Sprintf("%s-%d-%s", projectName, issueNumber, utils.TruncateAndDashCase(issue.Title, 50))
-		} else {
-			// Same repo: no prefix
-			branchName = fmt.Sprintf("%d-%s", issueNumber, utils.TruncateAndDashCase(issue.Title, 50))
+			projectPrefix = projectName
 		}
-
-		logger.Debug("Branch name created", map[string]interface{}{
-			"branch": branchName,
-		})
 
 		// Open git repo and validate it's clean
 		gitRepo, err := git.Open(codeRepo.Directory)
@@ -258,33 +248,8 @@ If the issue is from a different repo, the branch name will include the project 
 		}
 
 		// Create and checkout branch
-		if startUseWorktree {
-			worktreeBase := cfg.ResolveWorktreePath(codeRepo)
-			worktreeDir := filepath.Join(worktreeBase, branchName)
-			logger.Info("Creating worktree", map[string]interface{}{
-				"branch":    branchName,
-				"directory": worktreeDir,
-			})
-
-			defaultBranch := cfg.ResolveDefaultBranch(codeRepo)
-			if err := gitRepo.AddWorktree(worktreeDir, branchName, defaultBranch); err != nil {
-				return fmt.Errorf("failed to create worktree: %w", err)
-			}
-
-			fmt.Printf("Created worktree: %s\n", worktreeDir)
-		} else {
-			logger.Info("Creating and checking out branch", map[string]interface{}{
-				"branch": branchName,
-			})
-
-			if err := gitRepo.CreateBranch(branchName); err != nil {
-				return fmt.Errorf("failed to create branch: %w", err)
-			}
-			if err := gitRepo.CheckoutBranch(branchName); err != nil {
-				return fmt.Errorf("failed to checkout branch: %w", err)
-			}
-
-			fmt.Printf("Created and checked out branch: %s\n", branchName)
+		if err := createBranch(gitRepo, codeRepo, cfg, issueNumber, issue.Title, projectPrefix, startUseWorktree); err != nil {
+			return err
 		}
 
 		// Show issue URL, taken from the issue already fetched above
