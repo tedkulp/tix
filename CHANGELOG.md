@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The three-level ready/unready fallback rule (override, then per-repo, then global) is
+  written once as a `firstNonEmpty` helper instead of four times. `GetReadyLabel`,
+  `GetReadyStatus`, `GetUnreadyLabel` and `GetUnreadyStatus` keep their names, signatures
+  and behaviour.
 - `internal/git` no longer depends on go-git. Its five remaining go-git calls each had a
   one-line shell equivalent the package already used elsewhere, so `internal/git` now shells
   out for everything. `CreateBranch` and `CheckoutBranch` collapse into one

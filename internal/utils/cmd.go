@@ -173,88 +173,38 @@ func CreateSCMProvider(repoInfo *SharedRepoInfo) (services.SCMProvider, error) {
 	return provider, nil
 }
 
-// GetReadyLabel returns the appropriate ready label for the repository
+// firstNonEmpty returns the first non-empty string, or "" if all are empty.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// GetReadyLabel returns the appropriate ready label for the repository:
+// the override, else the per-repo label, else the global label, else "".
 func GetReadyLabel(cfg *config.Settings, repo *config.Repository, overrideLabel string) string {
-	// Use override label if provided
-	if overrideLabel != "" {
-		return overrideLabel
-	}
-
-	// Use repository-specific ready label if set
-	if repo.ReadyLabel != "" {
-		return repo.ReadyLabel
-	}
-
-	// Use global default ready label if set
-	if cfg.ReadyLabel != "" {
-		return cfg.ReadyLabel
-	}
-
-	// Return empty string if no ready label configured
-	return ""
+	return firstNonEmpty(overrideLabel, repo.ReadyLabel, cfg.ReadyLabel)
 }
 
-// GetReadyStatus returns the appropriate ready status for the repository
+// GetReadyStatus returns the appropriate ready status for the repository.
+// An empty result means no status is configured and the update is skipped.
 func GetReadyStatus(cfg *config.Settings, repo *config.Repository, overrideStatus string) string {
-	// Use override status if provided
-	if overrideStatus != "" {
-		return overrideStatus
-	}
-
-	// Use repository-specific ready status if set
-	if repo.ReadyStatus != "" {
-		return repo.ReadyStatus
-	}
-
-	// Use global default ready status if set
-	if cfg.ReadyStatus != "" {
-		return cfg.ReadyStatus
-	}
-
-	// Return empty string if no status configured (will be ignored)
-	return ""
+	return firstNonEmpty(overrideStatus, repo.ReadyStatus, cfg.ReadyStatus)
 }
 
-// GetUnreadyLabel returns the appropriate unready label for the repository
+// GetUnreadyLabel returns the appropriate unready label for the repository.
+// An empty result means only the ready label is removed.
 func GetUnreadyLabel(cfg *config.Settings, repo *config.Repository, overrideLabel string) string {
-	// Use override label if provided
-	if overrideLabel != "" {
-		return overrideLabel
-	}
-
-	// Use repository-specific unready label if set
-	if repo.UnreadyLabel != "" {
-		return repo.UnreadyLabel
-	}
-
-	// Use global default unready label if set
-	if cfg.UnreadyLabel != "" {
-		return cfg.UnreadyLabel
-	}
-
-	// Return empty string if no unready label configured (will just remove ready label)
-	return ""
+	return firstNonEmpty(overrideLabel, repo.UnreadyLabel, cfg.UnreadyLabel)
 }
 
-// GetUnreadyStatus returns the appropriate unready status for the repository
+// GetUnreadyStatus returns the appropriate unready status for the repository.
+// An empty result means no status is configured and the update is skipped.
 func GetUnreadyStatus(cfg *config.Settings, repo *config.Repository, overrideStatus string) string {
-	// Use override status if provided
-	if overrideStatus != "" {
-		return overrideStatus
-	}
-
-	// Use repository-specific unready status if set
-	if repo.UnreadyStatus != "" {
-		return repo.UnreadyStatus
-	}
-
-	// Use global default unready status if set
-	if cfg.UnreadyStatus != "" {
-		return cfg.UnreadyStatus
-	}
-
-	// Return empty string if no status configured (will be ignored)
-	return ""
+	return firstNonEmpty(overrideStatus, repo.UnreadyStatus, cfg.UnreadyStatus)
 }
 
 // LabelOperation represents the type of label operation
