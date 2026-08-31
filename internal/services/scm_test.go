@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tedkulp/tix/internal/browser"
+	"github.com/pkg/browser"
 )
 
 // TestNewAPIContextHasDeadline reproduces the fix for issue #9: SCM API

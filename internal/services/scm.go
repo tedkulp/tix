@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tedkulp/tix/internal/browser"
+	"github.com/pkg/browser"
+
 	"github.com/tedkulp/tix/internal/logger"
 )
 

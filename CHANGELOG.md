@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `internal/browser` is gone. It was one 24-line function wrapping
+  `github.com/pkg/browser` for a single caller, whose only additions were a Debug line and
+  a Warn the call site already emits. `internal/services` now holds `pkg/browser` directly in
+  the same `openURL` test seam. The Debug line logged before opening a URL is gone with
+  it.
 - `cmd/root.go` has one verbose switch. The copy inside the root `Run` sat behind
   `if !cmd.HasSubCommands()`, which is never true for a root command that registers nine
   subcommands, so it never ran. The help fallthrough it wrapped is unchanged.
