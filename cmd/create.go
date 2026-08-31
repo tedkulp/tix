@@ -478,13 +478,9 @@ func createBranch(gitRepo *git.Repository, repo *config.Repository, cfg *config.
 			"branch": branchName,
 		})
 
-		if err := gitRepo.CreateBranch(branchName); err != nil {
-			logger.Error("Failed to create branch", err)
-			return fmt.Errorf("failed to create branch: %w", err)
-		}
-		if err := gitRepo.CheckoutBranch(branchName); err != nil {
-			logger.Error("Failed to checkout branch", err)
-			return fmt.Errorf("failed to checkout branch: %w", err)
+		if err := gitRepo.CreateAndCheckoutBranch(branchName); err != nil {
+			logger.Error("Failed to create and checkout branch", err)
+			return fmt.Errorf("failed to create and checkout branch: %w", err)
 		}
 
 		fmt.Printf("Created and checked out branch: %s\n", branchName)

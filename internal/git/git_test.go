@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,7 @@ func newTestRepo(t *testing.T) *Repository {
 	run("init")
 	run("config", "user.email", "test@test.com")
 	run("config", "user.name", "Test")
+	run("config", "commit.gpgsign", "false")
 
 	readme := filepath.Join(dir, "readme.txt")
 	if err := os.WriteFile(readme, []byte("hello"), 0644); err != nil {
@@ -99,5 +101,56 @@ func TestStashPopWithNoStash(t *testing.T) {
 	// Pop with nothing stashed should return an error
 	if err := repo.StashPop(); err == nil {
 		t.Fatal("expected StashPop() to return error when stash is empty")
+	}
+}
+
+func TestCreateAndCheckoutBranch(t *testing.T) {
+	repo := newTestRepo(t)
+	head := revParse(t, repo.path, "HEAD")
+
+	if err := repo.CreateAndCheckoutBranch("feature-branch"); err != nil {
+		t.Fatalf("CreateAndCheckoutBranch() error: %v", err)
+	}
+
+	branch, err := GetBranchFromDir(repo.path)
+	if err != nil {
+		t.Fatalf("GetBranchFromDir() error: %v", err)
+	}
+	if branch != "feature-branch" {
+		t.Fatalf("expected branch feature-branch, got %q", branch)
+	}
+
+	// The new branch must point at the commit HEAD was on, not a fresh root.
+	if head != revParse(t, repo.path, "HEAD") {
+		t.Fatalf("expected HEAD to stay at %s after branching", head)
+	}
+}
+
+// revParse returns the commit hash the given revision resolves to in dir.
+func revParse(t *testing.T, dir, rev string) string {
+	t.Helper()
+	cmd := exec.Command("git", "rev-parse", rev)
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git rev-parse %s: %v", rev, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
+func TestCreateAndCheckoutBranchExisting(t *testing.T) {
+	repo := newTestRepo(t)
+
+	if err := repo.CreateAndCheckoutBranch("dupe"); err != nil {
+		t.Fatalf("CreateAndCheckoutBranch() error: %v", err)
+	}
+	if err := repo.CreateAndCheckoutBranch("dupe"); err == nil {
+		t.Fatal("expected error creating a branch that already exists")
+	}
+}
+
+func TestOpenNonRepository(t *testing.T) {
+	if _, err := Open(t.TempDir()); err == nil {
+		t.Fatal("expected Open() to fail on a directory that is not a git repository")
 	}
 }

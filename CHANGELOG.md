@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `internal/git` no longer depends on go-git. Its five remaining go-git calls each had a
+  one-line shell equivalent the package already used elsewhere, so `internal/git` now shells
+  out for everything. `CreateBranch` and `CheckoutBranch` collapse into one
+  `CreateAndCheckoutBranch`. `go.mod` drops go-git and seventeen indirect dependencies.
 - `tix create` prints the issue URL from the create response instead of making a second
   API call and building the URL from a string template. The extra `GetIssue` call fetched
   an issue nobody read. The template also produced GitLab's legacy `group/proj/issues/42`
@@ -30,6 +34,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worktree-or-branch decision. The branch-naming rule (`project-123-title` versus
   `123-title`) was written out in both files and now exists in one. `start` also picks up
   the failure logging it was missing. Printed output is unchanged on every path.
+
+### Fixed
+
+- `tix create` now fails with git's own error when the branch it wants already exists.
+  The old go-git call wrote the branch ref with `O_TRUNC` and no old-value check, so a
+  second `tix create` for the same issue silently reset that branch to HEAD and discarded
+  any commits on it. `git checkout -b` refuses instead.
 
 ### Removed
 

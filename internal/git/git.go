@@ -7,28 +7,23 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/tedkulp/tix/internal/logger"
 )
 
 // Repository represents a Git repository
 type Repository struct {
-	*git.Repository
 	path string
 }
 
 // Open opens a Git repository at the given path
 func Open(path string) (*Repository, error) {
-	repo, err := git.PlainOpen(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open repository: %w", err)
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd.Dir = path
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("failed to open repository: %s: %w", strings.TrimSpace(string(output)), err)
 	}
 
-	return &Repository{
-		Repository: repo,
-		path:       path,
-	}, nil
+	return &Repository{path: path}, nil
 }
 
 // IsClean checks if the working directory is clean
@@ -53,42 +48,25 @@ func (r *Repository) IsClean() (bool, error) {
 	return isClean, nil
 }
 
-// CreateBranch creates a new branch from the current HEAD
-func (r *Repository) CreateBranch(name string) error {
-	head, err := r.Head()
+// CreateAndCheckoutBranch creates a new branch from the current HEAD and checks it out.
+// Runs: git checkout -b <name>
+func (r *Repository) CreateAndCheckoutBranch(name string) error {
+	cmd := exec.Command("git", "checkout", "-b", name)
+	cmd.Dir = r.path
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("failed to get HEAD: %w", err)
+		return fmt.Errorf("failed to create and checkout branch: %s: %w", strings.TrimSpace(string(output)), err)
 	}
-
-	ref := plumbing.NewBranchReferenceName(name)
-	err = r.Storer.SetReference(plumbing.NewHashReference(ref, head.Hash()))
-	if err != nil {
-		return fmt.Errorf("failed to create branch: %w", err)
-	}
-
-	return nil
-}
-
-// CheckoutBranch checks out the specified branch
-func (r *Repository) CheckoutBranch(name string) error {
-	wt, err := r.Worktree()
-	if err != nil {
-		return fmt.Errorf("failed to get worktree: %w", err)
-	}
-
-	err = wt.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.NewBranchReferenceName(name),
+	logger.Debug("Branch created and checked out", map[string]interface{}{
+		"branch": name,
+		"output": strings.TrimSpace(string(output)),
 	})
-	if err != nil {
-		return fmt.Errorf("failed to checkout branch: %w", err)
-	}
-
 	return nil
 }
 
 // GetBranchFromDir returns the current branch name for the given directory.
-// This works correctly inside git worktrees, unlike go-git's Head() which
-// reads the main worktree's HEAD.
+// This works correctly inside git worktrees, because the command runs with
+// cmd.Dir set to that worktree.
 func GetBranchFromDir(dir string) (string, error) {
 	cmd := exec.Command("git", "branch", "--show-current")
 	cmd.Dir = dir
@@ -107,22 +85,9 @@ func GetBranchFromDir(dir string) (string, error) {
 
 // Push pushes the current branch to the remote repository
 func (r *Repository) Push(remoteName string, branchName string) error {
-	// Get remote details
-	remote, err := r.Remote(remoteName)
-	if err != nil {
-		return fmt.Errorf("failed to get remote: %w", err)
-	}
-
-	// Get first URL from remote
-	urls := remote.Config().URLs
-	if len(urls) == 0 {
-		return fmt.Errorf("no URLs found for remote %s", remoteName)
-	}
-
 	logger.Debug("Pushing branch", map[string]interface{}{
 		"remote": remoteName,
 		"branch": branchName,
-		"url":    urls[0],
 	})
 
 	// Use git command line with -u flag to set up tracking

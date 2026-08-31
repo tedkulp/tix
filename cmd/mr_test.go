@@ -46,6 +46,7 @@ func TestMrNonInteractiveAmbiguousRepo(t *testing.T) {
 	runGit("init", "-b", "main")
 	runGit("config", "user.email", "test@example.com")
 	runGit("config", "user.name", "Test")
+	runGit("config", "commit.gpgsign", "false")
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("x"), 0o644); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
