@@ -38,11 +38,15 @@ func (m *mockSCMProvider) CreateIssue(_ IssueParams) (*IssueResult, error) { ret
 func (m *mockSCMProvider) GetOpenRequests(_ int) ([]RequestResult, error) {
 	return m.openResults, m.openErr
 }
-func (m *mockSCMProvider) AddLabelsToIssue(_ int, _ []string) error      { return nil }
-func (m *mockSCMProvider) RemoveLabelsFromIssue(_ int, _ []string) error { return nil }
-func (m *mockSCMProvider) UpdateIssueStatus(_ int, _ string) error       { return nil }
-func (m *mockSCMProvider) GetURL() string                                { return "" }
-func (m *mockSCMProvider) GetCrossRepoIssueRef(_ int) string             { return m.crossRepoRef }
+func (m *mockSCMProvider) AddLabelsToIssue(_ int, _ []string) error       { return nil }
+func (m *mockSCMProvider) RemoveLabelsFromIssue(_ int, _ []string) error  { return nil }
+func (m *mockSCMProvider) UpdateIssueStatus(_ int, _ string) error        { return nil }
+func (m *mockSCMProvider) GetURL() string                                 { return "" }
+func (m *mockSCMProvider) GetCrossRepoIssueRef(_ int) string              { return m.crossRepoRef }
+func (m *mockSCMProvider) GetRequestDiff(_ int) (string, error)           { return "", nil }
+func (m *mockSCMProvider) UpdateRequestDescription(_ int, _ string) error { return nil }
+func (m *mockSCMProvider) UpdateIssueDescription(_ int, _ string) error   { return nil }
+func (m *mockSCMProvider) UpdateIssueTitle(_ int, _ string) error         { return nil }
 
 func TestGetWorkflowStatus_NoMR(t *testing.T) {
 	provider := &mockSCMProvider{

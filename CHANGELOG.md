@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `MRDescriptionProvider` is gone. `SCMProvider` is now the single provider interface over
+  GitLab and GitHub, carrying the four methods `setdesc` needed (`GetRequestDiff`,
+  `UpdateRequestDescription`, `UpdateIssueDescription`, `UpdateIssueTitle`). The duplicate
+  `MRDescriptionResult` and `IssueDetailsResult` structs collapse into `RequestResult` and
+  `IssueResult`, and the `IID` field they carried is gone. It always equaled `ID`.
 - Branch-name parsing coverage now targets `utils.ExtractIssueInfo` directly and asserts
   the project name it returns for cross-repo branches. Nothing tested that before.
 

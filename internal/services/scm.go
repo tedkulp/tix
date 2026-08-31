@@ -67,6 +67,18 @@ type SCMProvider interface {
 	// GetIssue returns an issue by its number
 	GetIssue(issueNumber int) (*IssueResult, error)
 
+	// GetRequestDiff gets the diff for a merge/pull request
+	GetRequestDiff(requestID int) (string, error)
+
+	// UpdateRequestDescription updates the description of a merge/pull request
+	UpdateRequestDescription(requestID int, description string) error
+
+	// UpdateIssueDescription updates the description of an issue
+	UpdateIssueDescription(issueNumber int, description string) error
+
+	// UpdateIssueTitle updates the title of an issue
+	UpdateIssueTitle(issueNumber int, title string) error
+
 	// AddLabelsToIssue adds labels to an existing issue
 	AddLabelsToIssue(issueNumber int, labels []string) error
 
@@ -98,9 +110,49 @@ type RequestResult struct {
 type IssueResult struct {
 	Number         int
 	Title          string
+	URL            string
 	Labels         []string
 	MilestoneID    int
 	MilestoneTitle string
+}
+
+// MRInfo holds information about a merge/pull request
+type MRInfo struct {
+	OpenRequests []RequestResult
+	SelectedID   int
+	Diff         string
+	WebURL       string
+	IssueURL     string
+}
+
+// GetMRInfo retrieves the open merge/pull requests for an issue
+func GetMRInfo(provider SCMProvider, issueNumber int) (*MRInfo, error) {
+	openMRs, err := provider.GetOpenRequests(issueNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open requests: %w", err)
+	}
+
+	if len(openMRs) == 0 {
+		return nil, fmt.Errorf("no open requests found for issue #%d, run 'mr' command first", issueNumber)
+	}
+
+	return &MRInfo{OpenRequests: openMRs}, nil
+}
+
+// GetMRInfoByBranch retrieves the open merge/pull requests for a branch.
+// This is useful in cross-repo scenarios where the issue doesn't exist in the
+// code repo.
+func GetMRInfoByBranch(provider SCMProvider, branchName string) (*MRInfo, error) {
+	openMRs, err := provider.GetOpenRequestsByBranch(branchName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get open requests: %w", err)
+	}
+
+	if len(openMRs) == 0 {
+		return nil, fmt.Errorf("no open requests found for branch '%s', run 'mr' command first", branchName)
+	}
+
+	return &MRInfo{OpenRequests: openMRs}, nil
 }
 
 // GitPusher is the subset of git repository behavior that CreateMergeRequest

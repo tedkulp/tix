@@ -103,8 +103,9 @@ func (p *GithubProject) CreateIssue(title, labels string, selfAssign bool, miles
 	}
 
 	return &GithubIssue{
-		Number: *result.Number,
-		Title:  *result.Title,
+		Number:  *result.Number,
+		Title:   *result.Title,
+		HTMLURL: result.GetHTMLURL(),
 	}, nil
 }
 
@@ -569,10 +570,31 @@ func (p *GitHubProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 	return &IssueResult{
 		Number:         issue.Number,
 		Title:          issue.Title,
+		URL:            issue.HTMLURL,
 		Labels:         issue.Labels,
 		MilestoneID:    0, // GitHub uses a different milestone format
 		MilestoneTitle: issue.MilestoneTitle,
 	}, nil
+}
+
+// GetRequestDiff implements the SCMProvider interface
+func (p *GitHubProvider) GetRequestDiff(requestID int) (string, error) {
+	return p.project.GetPullRequestDiff(requestID)
+}
+
+// UpdateRequestDescription implements the SCMProvider interface
+func (p *GitHubProvider) UpdateRequestDescription(requestID int, description string) error {
+	return p.project.UpdatePullRequestDescription(requestID, description)
+}
+
+// UpdateIssueDescription implements the SCMProvider interface
+func (p *GitHubProvider) UpdateIssueDescription(issueNumber int, description string) error {
+	return p.project.UpdateIssueDescription(issueNumber, description)
+}
+
+// UpdateIssueTitle implements the SCMProvider interface
+func (p *GitHubProvider) UpdateIssueTitle(issueNumber int, title string) error {
+	return p.project.UpdateIssueTitle(issueNumber, title)
 }
 
 // GetURL returns the GitHub URL for the repo
@@ -595,6 +617,7 @@ func (p *GitHubProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
 	return &IssueResult{
 		Number: issue.Number,
 		Title:  issue.Title,
+		URL:    issue.HTMLURL,
 		Labels: issue.Labels,
 	}, nil
 }

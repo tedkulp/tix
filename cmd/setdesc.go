@@ -24,9 +24,9 @@ type RepoInfo struct {
 	CurrentDir               string
 	IssueNumber              int
 	Branch                   string
-	DescriptionProvider      services.MRDescriptionProvider // For MR operations (code repo)
-	IssueDescriptionProvider services.MRDescriptionProvider // For issue operations (may be different repo)
-	IsCrossRepo              bool                           // True if issue repo is different from code repo
+	DescriptionProvider      services.SCMProvider // For MR operations (code repo)
+	IssueDescriptionProvider services.SCMProvider // For issue operations (may be different repo)
+	IsCrossRepo              bool                 // True if issue repo is different from code repo
 }
 
 // Command flags
@@ -282,11 +282,11 @@ func selectRepository() (*RepoInfo, error) {
 	}
 
 	// Create a description provider based on the code repository type (for MR)
-	var descriptionProvider services.MRDescriptionProvider
+	var descriptionProvider services.SCMProvider
 	if isGitlab {
-		descriptionProvider, err = services.NewGitLabMRDescriptionProvider(selectedRepo.GitlabRepo)
+		descriptionProvider, err = services.NewGitLabProvider(selectedRepo.GitlabRepo)
 	} else {
-		descriptionProvider, err = services.NewGitHubMRDescriptionProvider(selectedRepo.GithubRepo)
+		descriptionProvider, err = services.NewGitHubProvider(selectedRepo.GithubRepo)
 	}
 
 	if err != nil {
@@ -294,11 +294,11 @@ func selectRepository() (*RepoInfo, error) {
 	}
 
 	// Create a separate description provider for the issue repo (may be same as MR repo)
-	var issueDescriptionProvider services.MRDescriptionProvider
+	var issueDescriptionProvider services.SCMProvider
 	if issueRepo.GitlabRepo != "" {
-		issueDescriptionProvider, err = services.NewGitLabMRDescriptionProvider(issueRepo.GitlabRepo)
+		issueDescriptionProvider, err = services.NewGitLabProvider(issueRepo.GitlabRepo)
 	} else {
-		issueDescriptionProvider, err = services.NewGitHubMRDescriptionProvider(issueRepo.GithubRepo)
+		issueDescriptionProvider, err = services.NewGitHubProvider(issueRepo.GithubRepo)
 	}
 
 	if err != nil {
@@ -328,7 +328,7 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 		logger.Debug("Using branch-based MR lookup for cross-repo scenario", map[string]any{
 			"branch": repoInfo.Branch,
 		})
-		mrInfo, err = services.GetMRInfoByBranch(repoInfo.DescriptionProvider, repoInfo.Branch, repoInfo.IssueNumber)
+		mrInfo, err = services.GetMRInfoByBranch(repoInfo.DescriptionProvider, repoInfo.Branch)
 	} else {
 		// Same-repo scenario: use issue-based lookup
 		mrInfo, err = services.GetMRInfo(repoInfo.DescriptionProvider, repoInfo.IssueNumber)
@@ -341,11 +341,11 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 	// Get merge request titles to display to the user
 	mrTitles := make([]string, len(mrInfo.OpenRequests))
 	for i, mr := range mrInfo.OpenRequests {
-		mrTitles[i] = fmt.Sprintf("%s (#%d)", mr.Title, mr.IID)
+		mrTitles[i] = fmt.Sprintf("%s (#%d)", mr.Title, mr.ID)
 	}
 
 	// If multiple merge requests are found, ask the user to select one
-	var selectedMR services.MRDescriptionResult
+	var selectedMR services.RequestResult
 	if len(mrInfo.OpenRequests) > 1 && !setdescNonInteractive {
 		// Use pterm's interactive select component
 		selectedTitle, err := pterm.DefaultInteractiveSelect.
@@ -371,7 +371,7 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 	}
 
 	logger.Info("Merge request selected", map[string]any{
-		"id":    selectedMR.IID,
+		"id":    selectedMR.ID,
 		"title": selectedMR.Title,
 	})
 
@@ -382,7 +382,7 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 	}
 
 	// Get issue web URL (use IssueDescriptionProvider for cross-repo support)
-	issue, err := repoInfo.IssueDescriptionProvider.GetIssueDetails(repoInfo.IssueNumber)
+	issue, err := repoInfo.IssueDescriptionProvider.GetIssue(repoInfo.IssueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue details: %w", err)
 	}
@@ -390,8 +390,8 @@ func getMergeRequestInfo(repoInfo *RepoInfo) (*services.MRInfo, error) {
 	// Update MRInfo with additional details
 	mrInfo.SelectedID = selectedMR.ID
 	mrInfo.Diff = diff
-	mrInfo.WebURL = selectedMR.WebURL
-	mrInfo.IssueURL = issue.WebURL
+	mrInfo.WebURL = selectedMR.URL
+	mrInfo.IssueURL = issue.URL
 
 	return mrInfo, nil
 }
@@ -444,7 +444,7 @@ func generateAndUpdateIssueDescription(ctx context.Context, client *openai.Clien
 	fmt.Println("Generating issue description...")
 
 	// Get original issue details (use IssueDescriptionProvider for cross-repo support)
-	originalIssue, err := repoInfo.IssueDescriptionProvider.GetIssueDetails(repoInfo.IssueNumber)
+	originalIssue, err := repoInfo.IssueDescriptionProvider.GetIssue(repoInfo.IssueNumber)
 	if err != nil {
 		return fmt.Errorf("failed to get original issue details: %w", err)
 	}

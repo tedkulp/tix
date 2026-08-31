@@ -199,8 +199,9 @@ func (p *GitlabProject) CreateIssue(title, labels string, selfAssign bool, miles
 	}
 
 	return &GitlabIssue{
-		IID:   result.IID,
-		Title: result.Title,
+		IID:    result.IID,
+		Title:  result.Title,
+		WebURL: result.WebURL,
 	}, nil
 }
 
@@ -941,10 +942,31 @@ func (p *GitLabProvider) GetIssue(issueNumber int) (*IssueResult, error) {
 	return &IssueResult{
 		Number:         issue.IID,
 		Title:          issue.Title,
+		URL:            issue.WebURL,
 		Labels:         issue.Labels,
 		MilestoneID:    issue.MilestoneID,
 		MilestoneTitle: issue.MilestoneTitle,
 	}, nil
+}
+
+// GetRequestDiff implements the SCMProvider interface
+func (p *GitLabProvider) GetRequestDiff(requestID int) (string, error) {
+	return p.project.GetMergeRequestDiff(requestID)
+}
+
+// UpdateRequestDescription implements the SCMProvider interface
+func (p *GitLabProvider) UpdateRequestDescription(requestID int, description string) error {
+	return p.project.UpdateMergeRequestDescription(requestID, description)
+}
+
+// UpdateIssueDescription implements the SCMProvider interface
+func (p *GitLabProvider) UpdateIssueDescription(issueNumber int, description string) error {
+	return p.project.UpdateIssueDescription(issueNumber, description)
+}
+
+// UpdateIssueTitle implements the SCMProvider interface
+func (p *GitLabProvider) UpdateIssueTitle(issueNumber int, title string) error {
+	return p.project.UpdateIssueTitle(issueNumber, title)
 }
 
 // GetURL returns the GitLab URL for the repo
@@ -972,6 +994,7 @@ func (p *GitLabProvider) CreateIssue(params IssueParams) (*IssueResult, error) {
 	return &IssueResult{
 		Number: issue.IID,
 		Title:  issue.Title,
+		URL:    issue.WebURL,
 		Labels: issue.Labels,
 	}, nil
 }
