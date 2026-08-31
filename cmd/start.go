@@ -287,9 +287,12 @@ If the issue is from a different repo, the branch name will include the project 
 			fmt.Printf("Created and checked out branch: %s\n", branchName)
 		}
 
-		// Show issue URL
-		issueURL := fmt.Sprintf("%s/issues/%d", issueProvider.GetURL(), issueNumber)
-		fmt.Printf("Issue: %s\n", issueURL)
+		// Show issue URL, taken from the issue already fetched above
+		if issue.URL != "" {
+			fmt.Printf("Issue: %s\n", issue.URL)
+		} else {
+			fmt.Printf("Issue: #%d %s\n", issue.Number, issue.Title)
+		}
 
 		logger.Debug("Start command completed successfully")
 		return nil

@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `tix create` prints the issue URL from the create response instead of making a second
+  API call and building the URL from a string template. The extra `GetIssue` call fetched
+  an issue nobody read. The template also produced GitLab's legacy `group/proj/issues/42`
+  form, which only worked through a redirect; the response carries the canonical
+  `group/proj/-/issues/42`. `tix start` now reads the URL off the issue it already fetched
+  for the same reason. Both keep a non-URL fallback when the response carries no URL.
 - `MRDescriptionProvider` is gone. `SCMProvider` is now the single provider interface over
   GitLab and GitHub, carrying the four methods `setdesc` needed (`GetRequestDiff`,
   `UpdateRequestDescription`, `UpdateIssueDescription`, `UpdateIssueTitle`). The duplicate
@@ -19,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- `SCMProvider.GetURL` and both provider implementations. Removing the two URL templates
+  above was its last caller, and it is the exact template that produced the legacy GitLab
+  issue URL.
 - Dead exported code with no callers anywhere in the tree. `services.IssueProvider` and its
   GitLab and GitHub implementations, `utils.Contains`, `utils.ExtractIssueNumber`,
   `utils.SplitOnCommaAndWhitespace`, `utils.HandleLabelOperation`, `git.DeleteBranch`,

@@ -969,11 +969,6 @@ func (p *GitLabProvider) UpdateIssueTitle(issueNumber int, title string) error {
 	return p.project.UpdateIssueTitle(issueNumber, title)
 }
 
-// GetURL returns the GitLab URL for the repo
-func (p *GitLabProvider) GetURL() string {
-	return fmt.Sprintf("https://gitlab.com/%s", p.project.pid)
-}
-
 // GetCrossRepoIssueRef returns a cross-repo issue reference for GitLab
 func (p *GitLabProvider) GetCrossRepoIssueRef(issueNumber int) string {
 	return fmt.Sprintf("%s#%d", p.project.pid, issueNumber)

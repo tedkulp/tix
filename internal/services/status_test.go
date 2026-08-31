@@ -41,7 +41,6 @@ func (m *mockSCMProvider) GetOpenRequests(_ int) ([]RequestResult, error) {
 func (m *mockSCMProvider) AddLabelsToIssue(_ int, _ []string) error       { return nil }
 func (m *mockSCMProvider) RemoveLabelsFromIssue(_ int, _ []string) error  { return nil }
 func (m *mockSCMProvider) UpdateIssueStatus(_ int, _ string) error        { return nil }
-func (m *mockSCMProvider) GetURL() string                                 { return "" }
 func (m *mockSCMProvider) GetCrossRepoIssueRef(_ int) string              { return m.crossRepoRef }
 func (m *mockSCMProvider) GetRequestDiff(_ int) (string, error)           { return "", nil }
 func (m *mockSCMProvider) UpdateRequestDescription(_ int, _ string) error { return nil }

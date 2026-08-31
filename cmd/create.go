@@ -432,18 +432,13 @@ func createIssue(settings *RepoSettings) (*services.IssueResult, error) {
 		"title":  issueResult.Title,
 	})
 
-	// Get issue URL from the provider
-	var issueURL string
-	if _, err := settings.Provider.GetIssue(issueResult.Number); err == nil {
-		issueURL = fmt.Sprintf("%s/issues/%d", settings.Provider.GetURL(), issueResult.Number)
+	// Show URL in terminal. The create response carries the canonical URL, so
+	// there is nothing to fetch or build.
+	if issueResult.URL != "" {
 		logger.Info("Issue URL", map[string]interface{}{
-			"url": issueURL,
+			"url": issueResult.URL,
 		})
-	}
-
-	// Show URL in terminal
-	if issueURL != "" {
-		fmt.Printf("Created issue: %s\n", issueURL)
+		fmt.Printf("Created issue: %s\n", issueResult.URL)
 	} else {
 		fmt.Printf("Created issue #%d: %s\n", issueResult.Number, issueResult.Title)
 	}

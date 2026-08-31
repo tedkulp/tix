@@ -88,9 +88,6 @@ type SCMProvider interface {
 	// UpdateIssueStatus updates the status of an issue (GitLab only, no-op for GitHub)
 	UpdateIssueStatus(issueNumber int, status string) error
 
-	// GetURL returns the URL for the created request
-	GetURL() string
-
 	// GetCrossRepoIssueRef returns a cross-repo issue reference string
 	// For GitHub: returns "owner/repo#123"
 	// For GitLab: returns "group/project#123"

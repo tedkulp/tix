@@ -597,11 +597,6 @@ func (p *GitHubProvider) UpdateIssueTitle(issueNumber int, title string) error {
 	return p.project.UpdateIssueTitle(issueNumber, title)
 }
 
-// GetURL returns the GitHub URL for the repo
-func (p *GitHubProvider) GetURL() string {
-	return fmt.Sprintf("https://github.com/%s/%s", p.project.owner, p.project.repo)
-}
-
 // GetCrossRepoIssueRef returns a cross-repo issue reference for GitHub
 func (p *GitHubProvider) GetCrossRepoIssueRef(issueNumber int) string {
 	return fmt.Sprintf("%s/%s#%d", p.project.owner, p.project.repo, issueNumber)
