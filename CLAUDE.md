@@ -195,7 +195,8 @@ goreleaser release --snapshot --clean
 
 The `setdesc` command generates descriptions for merge requests and issues using OpenAI's API:
 
-- **Direct approach**: For diffs <50,000 characters, sends the full diff directly to GPT-5 Mini
+- **Direct approach**: For diffs under 50,000 estimated tokens (`EstimateTokenCount` is `len/4`, so
+  roughly 200,000 characters), sends the full diff directly to the model in `descriptionModel`
 - **RAG approach**: For large diffs, uses embeddings (text-embedding-3-small) and vector search to retrieve relevant context
 
 ### Prompt Engineering
@@ -249,10 +250,9 @@ logger.Error("Error message", map[string]any{"error": err})
 ```
 
 ### Provider Interface Pattern
-Services use provider interfaces for flexibility:
-- `MRDescriptionProvider`: Abstract interface for MR/PR operations
-- `GitLabMRDescriptionProvider`: GitLab implementation
-- `GitHubMRDescriptionProvider`: GitHub implementation
+`SCMProvider` (`internal/services/scm.go`) is the single interface over both hosts:
+- `GitLabProvider`: GitLab implementation
+- `GitHubProvider`: GitHub implementation
 
 ## Configuration
 
@@ -272,8 +272,8 @@ When adding new configuration options:
 ## Dependencies
 
 Key dependencies (see `go.mod`):
-- `github.com/xanzy/go-gitlab`: GitLab API client
-- `github.com/google/go-github/v57`: GitHub API client
+- `gitlab.com/gitlab-org/api/client-go`: GitLab API client
+- `github.com/google/go-github/v62`: GitHub API client
 - `github.com/sashabaranov/go-openai`: OpenAI API client
 - `github.com/spf13/cobra`: CLI framework
 - `gopkg.in/yaml.v3`: YAML configuration parsing

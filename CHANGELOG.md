@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   form, which only worked through a redirect; the response carries the canonical
   `group/proj/-/issues/42`. `tix start` now reads the URL off the issue it already fetched
   for the same reason. Both keep a non-URL fallback when the response carries no URL.
+- The four description-generation paths in `internal/services/openai.go` collapse into one.
+  The RAG pipeline, the RAG-or-direct decision, the title extraction and the model name each
+  existed twice; each now exists once. The two public entry points keep their signatures and
+  the prompts are unchanged, so generated descriptions are identical. 374 lines to 231.
 - `MRDescriptionProvider` is gone. `SCMProvider` is now the single provider interface over
   GitLab and GitHub, carrying the four methods `setdesc` needed (`GetRequestDiff`,
   `UpdateRequestDescription`, `UpdateIssueDescription`, `UpdateIssueTitle`). The duplicate

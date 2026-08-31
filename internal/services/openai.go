@@ -91,43 +91,48 @@ The rationale for the change. Again, it should be 1-3 sentences, clear and conci
 	`, currentTitle, diffContent, currentTitle)
 }
 
-// GenerateMRDescriptionWithOptions generates a description with optional RAG override
-func GenerateMRDescriptionWithOptions(ctx context.Context, client *openai.Client, diff string, forceRAG *bool) (string, error) {
-	// Determine whether to use RAG
-	useRAG := false
+// descriptionModel is the chat model used for every generated description.
+const descriptionModel = "gpt-5.6-luna"
+
+// shouldUseRAG decides between the RAG and direct paths, honouring an explicit
+// override and otherwise falling back to the size of the diff.
+func shouldUseRAG(forceRAG *bool, diff string) bool {
 	if forceRAG != nil {
-		// User explicitly requested RAG on or off
-		useRAG = *forceRAG
-		if useRAG {
+		if *forceRAG {
 			logger.Info("Using RAG approach (forced by --use-rag flag)")
 		} else {
 			logger.Info("Using direct approach (forced by --use-rag=false flag)")
 		}
-	} else {
-		// Auto-detect based on diff size
-		const smallDiffThreshold = 50000 // ~12.5k tokens
-		useRAG = EstimateTokenCount(diff) >= smallDiffThreshold
-		if useRAG {
-			logger.Info("Diff is large, using RAG approach with embeddings")
-		} else {
-			logger.Info("Diff is small enough, using direct approach without RAG")
+		return *forceRAG
+	}
+
+	const smallDiffThreshold = 50000 // estimated tokens, so ~200k characters
+	if EstimateTokenCount(diff) >= smallDiffThreshold {
+		logger.Info("Diff is large, using RAG approach with embeddings")
+		return true
+	}
+	logger.Info("Diff is small enough, using direct approach without RAG")
+	return false
+}
+
+// generateDescription runs a diff through the model, either directly or via RAG.
+// prompt wraps the content the model sees; query is the RAG retrieval query and
+// is unused on the direct path.
+func generateDescription(ctx context.Context, client *openai.Client, diff string, forceRAG *bool, prompt func(string) string, query string) (string, error) {
+	content := diff
+	if shouldUseRAG(forceRAG, diff) {
+		var err error
+		if content, err = retrieveContext(ctx, client, diff, query); err != nil {
+			return "", err
 		}
 	}
 
-	if useRAG {
-		return generateMRDescriptionWithRAG(ctx, client, diff)
-	}
-	return generateMRDescriptionDirect(ctx, client, diff)
-}
-
-// generateMRDescriptionDirect generates a description directly without RAG for small diffs
-func generateMRDescriptionDirect(ctx context.Context, client *openai.Client, diff string) (string, error) {
 	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.6-luna",
+		Model: descriptionModel,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
-				Content: buildMRPrompt(diff),
+				Content: prompt(content),
 			},
 		},
 	})
@@ -142,9 +147,9 @@ func generateMRDescriptionDirect(ctx context.Context, client *openai.Client, dif
 	return resp.Choices[0].Message.Content, nil
 }
 
-// generateMRDescriptionWithRAG generates a description using RAG for large diffs
-func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, diff string) (string, error) {
-	// Step 1: Chunk the diff
+// retrieveContext chunks the diff, embeds it, and returns the chunks most
+// relevant to query as a single prompt-ready block.
+func retrieveContext(ctx context.Context, client *openai.Client, diff string, query string) (string, error) {
 	chunks := ChunkDiff(diff)
 	if len(chunks) == 0 {
 		return "", fmt.Errorf("no chunks generated from diff")
@@ -154,24 +159,13 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 		"chunks": len(chunks),
 	})
 
-	// Step 2: Generate embeddings for all chunks
 	embeddings, err := GenerateEmbeddings(ctx, client, chunks)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate embeddings: %w", err)
 	}
 
-	// Step 3: Create vector store
-	vectorStore := NewVectorStore(embeddings)
-
-	// Step 4: Create query for what we're looking for
-	queryText := `Generate a concise merge request description that includes:
-- A summary of the changes
-- Technical details for developers
-- Testing information for QA`
-
-	// Generate embedding for the query
 	queryResp, err := client.CreateEmbeddings(ctx, openai.EmbeddingRequestStrings{
-		Input: []string{queryText},
+		Input: []string{query},
 		Model: openai.SmallEmbedding3,
 	})
 	if err != nil {
@@ -182,14 +176,12 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 		return "", fmt.Errorf("no query embedding returned")
 	}
 
-	// Step 5: Search for most relevant chunks
 	topK := 15
 	if topK > len(chunks) {
 		topK = len(chunks)
 	}
-	results := vectorStore.Search(queryResp.Data[0].Embedding, topK)
+	results := NewVectorStore(embeddings).Search(queryResp.Data[0].Embedding, topK)
 
-	// Step 6: Build context from retrieved chunks
 	var contextBuilder strings.Builder
 	contextBuilder.WriteString("Here are the most relevant code changes:\n\n")
 
@@ -202,173 +194,38 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 		contextBuilder.WriteString("\n\n")
 	}
 
-	// Step 7: Generate description using retrieved context
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.6-luna",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: buildMRPrompt(contextBuilder.String()),
-			},
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to generate description: %w", err)
-	}
+	return contextBuilder.String(), nil
+}
 
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no response from OpenAI")
+// extractTitle splits a leading "## " heading off a generated description.
+func extractTitle(description string) (string, string) {
+	if !strings.HasPrefix(description, "## ") {
+		return "", description
 	}
+	lines := strings.Split(description, "\n")
+	return strings.TrimSpace(strings.TrimPrefix(lines[0], "## ")),
+		strings.TrimSpace(strings.Join(lines[1:], "\n"))
+}
 
-	return resp.Choices[0].Message.Content, nil
+// GenerateMRDescriptionWithOptions generates a description with optional RAG override
+func GenerateMRDescriptionWithOptions(ctx context.Context, client *openai.Client, diff string, forceRAG *bool) (string, error) {
+	return generateDescription(ctx, client, diff, forceRAG, buildMRPrompt, `Generate a concise merge request description that includes:
+- A summary of the changes
+- Technical details for developers
+- Testing information for QA`)
 }
 
 // GenerateIssueDescriptionWithOptions generates an issue description with optional RAG override
 func GenerateIssueDescriptionWithOptions(ctx context.Context, client *openai.Client, diff string, currentTitle string, forceRAG *bool) (string, string, error) {
-	// Determine whether to use RAG
-	useRAG := false
-	if forceRAG != nil {
-		// User explicitly requested RAG on or off
-		useRAG = *forceRAG
-		if useRAG {
-			logger.Info("Using RAG approach (forced by --use-rag flag)")
-		} else {
-			logger.Info("Using direct approach (forced by --use-rag=false flag)")
-		}
-	} else {
-		// Auto-detect based on diff size
-		const smallDiffThreshold = 50000 // ~12.5k tokens
-		useRAG = EstimateTokenCount(diff) >= smallDiffThreshold
-		if useRAG {
-			logger.Info("Diff is large, using RAG approach with embeddings")
-		} else {
-			logger.Info("Diff is small enough, using direct approach without RAG")
-		}
-	}
-
-	if useRAG {
-		return generateIssueDescriptionWithRAG(ctx, client, diff, currentTitle)
-	}
-	return generateIssueDescriptionDirect(ctx, client, diff, currentTitle)
-}
-
-// generateIssueDescriptionDirect generates an issue description directly without RAG for small diffs
-func generateIssueDescriptionDirect(ctx context.Context, client *openai.Client, diff string, currentTitle string) (string, string, error) {
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.6-luna",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: buildIssuePrompt(diff, currentTitle),
-			},
-		},
-	})
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate issue description: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return "", "", fmt.Errorf("no response from OpenAI")
-	}
-
-	description := resp.Choices[0].Message.Content
-
-	// Extract title if present
-	title := ""
-	if strings.HasPrefix(description, "## ") {
-		lines := strings.Split(description, "\n")
-		title = strings.TrimSpace(strings.TrimPrefix(lines[0], "## "))
-		description = strings.TrimSpace(strings.Join(lines[1:], "\n"))
-	}
-
-	return title, description, nil
-}
-
-// generateIssueDescriptionWithRAG generates an issue description using RAG for large diffs
-func generateIssueDescriptionWithRAG(ctx context.Context, client *openai.Client, diff string, currentTitle string) (string, string, error) {
-	// Step 1: Chunk the diff
-	chunks := ChunkDiff(diff)
-	if len(chunks) == 0 {
-		return "", "", fmt.Errorf("no chunks generated from diff")
-	}
-
-	logger.Info("Processing diff with RAG for issue description", map[string]any{
-		"chunks": len(chunks),
-	})
-
-	// Step 2: Generate embeddings for all chunks
-	embeddings, err := GenerateEmbeddings(ctx, client, chunks)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate embeddings: %w", err)
-	}
-
-	// Step 3: Create vector store
-	vectorStore := NewVectorStore(embeddings)
-
-	// Step 4: Create query for what we're looking for
-	queryText := fmt.Sprintf(`Generate an issue description for: %s
+	prompt := func(content string) string { return buildIssuePrompt(content, currentTitle) }
+	query := fmt.Sprintf(`Generate an issue description for: %s
 Focus on the business logic changes, the intended behavior, and the motivation for the change.`, currentTitle)
 
-	// Generate embedding for the query
-	queryResp, err := client.CreateEmbeddings(ctx, openai.EmbeddingRequestStrings{
-		Input: []string{queryText},
-		Model: openai.SmallEmbedding3,
-	})
+	description, err := generateDescription(ctx, client, diff, forceRAG, prompt, query)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to generate query embedding: %w", err)
+		return "", "", err
 	}
 
-	if len(queryResp.Data) == 0 {
-		return "", "", fmt.Errorf("no query embedding returned")
-	}
-
-	// Step 5: Search for most relevant chunks
-	topK := 15
-	if topK > len(chunks) {
-		topK = len(chunks)
-	}
-	results := vectorStore.Search(queryResp.Data[0].Embedding, topK)
-
-	// Step 6: Build context from retrieved chunks
-	var contextBuilder strings.Builder
-	contextBuilder.WriteString("Here are the most relevant code changes:\n\n")
-
-	for i, result := range results {
-		fmt.Fprintf(&contextBuilder, "--- Change %d (similarity: %.3f) ---\n", i+1, result.Similarity)
-		if result.Vector.Chunk.FilePath != "" {
-			fmt.Fprintf(&contextBuilder, "File: %s\n", result.Vector.Chunk.FilePath)
-		}
-		contextBuilder.WriteString(result.Vector.Chunk.Content)
-		contextBuilder.WriteString("\n\n")
-	}
-
-	// Step 7: Generate issue description using retrieved context
-	resp, err := client.CreateChatCompletion(ctx, openai.ChatCompletionRequest{
-		Model: "gpt-5.6-luna",
-		Messages: []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: buildIssuePrompt(contextBuilder.String(), currentTitle),
-			},
-		},
-	})
-	if err != nil {
-		return "", "", fmt.Errorf("failed to generate issue description: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return "", "", fmt.Errorf("no response from OpenAI")
-	}
-
-	description := resp.Choices[0].Message.Content
-
-	// Extract title if present
-	title := ""
-	if strings.HasPrefix(description, "## ") {
-		lines := strings.Split(description, "\n")
-		title = strings.TrimSpace(strings.TrimPrefix(lines[0], "## "))
-		description = strings.TrimSpace(strings.Join(lines[1:], "\n"))
-	}
-
+	title, description := extractTitle(description)
 	return title, description, nil
 }
