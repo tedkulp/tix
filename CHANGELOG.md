@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `cmd/root.go` has one verbose switch. The copy inside the root `Run` sat behind
+  `if !cmd.HasSubCommands()`, which is never true for a root command that registers nine
+  subcommands, so it never ran. The help fallthrough it wrapped is unchanged.
 - The logger's event-building body is written once. `Debug`, `Info`, `Warn` and `Error`
   were four copies of the same bail-if-uninitialized, loop-the-fields, `Msg` sequence and
   now share one `emit` helper. Each also wrote a redundant `level` field over the one

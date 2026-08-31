@@ -50,21 +50,6 @@ in your Git repositories, with support for both GitHub and GitLab.`,
 	},
 	// Add a Run function to show help if no subcommand is provided
 	Run: func(cmd *cobra.Command, args []string) {
-		// Initialize logger for root command when no subcommand is specified
-		if !cmd.HasSubCommands() {
-			logger.InitLogger(verboseCount)
-
-			switch verboseCount {
-			case 0:
-				// WARN level - no startup message needed
-			case 1:
-				logger.Info("Info logging enabled (-v)")
-			default:
-				logger.Info("Debug logging enabled (-vv)")
-				logger.Debug("Debug logging is active")
-			}
-		}
-
 		// If no args, show the help
 		if len(args) == 0 {
 			err := cmd.Help()
