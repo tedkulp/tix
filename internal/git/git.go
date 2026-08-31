@@ -144,17 +144,6 @@ func (r *Repository) Push(remoteName string, branchName string) error {
 	return nil
 }
 
-// DeleteBranch deletes a branch
-func (r *Repository) DeleteBranch(name string) error {
-	ref := plumbing.NewBranchReferenceName(name)
-	err := r.Storer.RemoveReference(ref)
-	if err != nil {
-		return fmt.Errorf("failed to delete branch: %w", err)
-	}
-
-	return nil
-}
-
 // Stash saves all working directory changes (including untracked files) to the stash
 func (r *Repository) Stash() error {
 	cmd := exec.Command("git", "stash", "-u")

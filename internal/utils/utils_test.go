@@ -1,7 +1,6 @@
 package utils
 
 import (
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -104,54 +103,6 @@ func TestTruncateAndDashCase(t *testing.T) {
 	}
 }
 
-func TestSplitOnCommaAndWhitespace(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  []string
-	}{
-		{
-			name:  "simple comma separated",
-			input: "a,b,c",
-			want:  []string{"a", "b", "c"},
-		},
-		{
-			name:  "with whitespace",
-			input: "a, b, c",
-			want:  []string{"a", "b", "c"},
-		},
-		{
-			name:  "mixed spacing",
-			input: "a,b ,  c",
-			want:  []string{"a", "b", "c"},
-		},
-		{
-			name:  "empty parts",
-			input: "a,,c",
-			want:  []string{"a", "", "c"},
-		},
-		{
-			name:  "empty string",
-			input: "",
-			want:  []string{""},
-		},
-		{
-			name:  "only whitespace",
-			input: "  ,  ,  ",
-			want:  []string{"", "", ""},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := SplitOnCommaAndWhitespace(tt.input)
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("SplitOnCommaAndWhitespace() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGenerateMilestone(t *testing.T) {
 	tests := []struct {
 		name string
@@ -195,10 +146,11 @@ func TestGenerateMilestone(t *testing.T) {
 	}
 }
 
-func TestExtractIssueNumber(t *testing.T) {
+func TestExtractIssueInfo(t *testing.T) {
 	tests := []struct {
 		name        string
 		branchName  string
+		wantProject string
 		wantNumber  int
 		wantErr     bool
 		errContains string
@@ -220,6 +172,20 @@ func TestExtractIssueNumber(t *testing.T) {
 			branchName: "999999-implement-major-feature",
 			wantNumber: 999999,
 			wantErr:    false,
+		},
+		{
+			name:        "cross-repo branch name carries the project",
+			branchName:  "project-123-add-feature",
+			wantProject: "project",
+			wantNumber:  123,
+			wantErr:     false,
+		},
+		{
+			name:        "cross-repo branch name with single digit issue",
+			branchName:  "backend-7-fix-bug",
+			wantProject: "backend",
+			wantNumber:  7,
+			wantErr:     false,
 		},
 		{
 			name:        "branch name without issue number",
@@ -249,22 +215,26 @@ func TestExtractIssueNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ExtractIssueNumber(tt.branchName)
+			gotProject, gotNumber, err := ExtractIssueInfo(tt.branchName)
 			if tt.wantErr {
 				if err == nil {
-					t.Error("ExtractIssueNumber() error = nil, wantErr true")
+					t.Error("ExtractIssueInfo() error = nil, wantErr true")
+					return
 				}
 				if tt.errContains != "" && !strings.Contains(err.Error(), tt.errContains) {
-					t.Errorf("ExtractIssueNumber() error = %v, want error containing %v", err, tt.errContains)
+					t.Errorf("ExtractIssueInfo() error = %v, want error containing %v", err, tt.errContains)
 				}
 				return
 			}
 			if err != nil {
-				t.Errorf("ExtractIssueNumber() error = %v, wantErr false", err)
+				t.Errorf("ExtractIssueInfo() error = %v, wantErr false", err)
 				return
 			}
-			if got != tt.wantNumber {
-				t.Errorf("ExtractIssueNumber() = %v, want %v", got, tt.wantNumber)
+			if gotProject != tt.wantProject {
+				t.Errorf("ExtractIssueInfo() project = %q, want %q", gotProject, tt.wantProject)
+			}
+			if gotNumber != tt.wantNumber {
+				t.Errorf("ExtractIssueInfo() number = %v, want %v", gotNumber, tt.wantNumber)
 			}
 		})
 	}

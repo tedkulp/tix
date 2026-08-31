@@ -78,15 +78,6 @@ func TruncateAndDashCase(s string, maxLen int) string {
 	return resultStr
 }
 
-// SplitOnCommaAndWhitespace splits a string on commas and trims whitespace
-func SplitOnCommaAndWhitespace(s string) []string {
-	parts := strings.Split(s, ",")
-	for i, part := range parts {
-		parts[i] = strings.TrimSpace(part)
-	}
-	return parts
-}
-
 // GenerateMilestone creates a milestone string in the format YYYY.QN based on the provided time
 // For example: 2025.Q1 for January-March, 2025.Q2 for April-June, etc.
 func GenerateMilestone(t time.Time) string {
@@ -138,12 +129,4 @@ func ExtractIssueInfo(branchName string) (string, int, error) {
 	}
 
 	return parts[0], issueNumber, nil
-}
-
-// ExtractIssueNumber extracts the issue number from a branch name.
-// Branch names are typically in the format 123-branch-name or project-123-branch-name.
-// This function is kept for backward compatibility and uses ExtractIssueInfo internally.
-func ExtractIssueNumber(branchName string) (int, error) {
-	_, issueNumber, err := ExtractIssueInfo(branchName)
-	return issueNumber, err
 }

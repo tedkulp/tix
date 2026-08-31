@@ -20,11 +20,6 @@ var (
 	Date = "unknown"
 )
 
-// GetVersion returns the full version string
-func GetVersion() string {
-	return Version
-}
-
 // GetFullVersion returns version information including commit hash and build date
 func GetFullVersion() string {
 	return fmt.Sprintf("tix version %s (commit: %s, built: %s, %s/%s)",

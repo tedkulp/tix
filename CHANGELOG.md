@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Branch-name parsing coverage now targets `utils.ExtractIssueInfo` directly and asserts
+  the project name it returns for cross-repo branches. Nothing tested that before.
+
+### Removed
+
+- Dead exported code with no callers anywhere in the tree. `services.IssueProvider` and its
+  GitLab and GitHub implementations, `utils.Contains`, `utils.ExtractIssueNumber`,
+  `utils.SplitOnCommaAndWhitespace`, `utils.HandleLabelOperation`, `git.DeleteBranch`,
+  `logger.IsInitialized`, `logger.Fatal`, `logger.Writer`, `version.GetVersion`,
+  `services.GenerateMRDescription`, and `services.GenerateIssueDescription`. No behavior
+  changes.
+
 ## [0.10.1] - 2026-08-25
 
 ### Changed

@@ -2,7 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -57,11 +56,6 @@ func InitLogger(verboseCount int) {
 
 	// Mark as initialized
 	initialized = true
-}
-
-// IsInitialized returns true if the logger has been initialized
-func IsInitialized() bool {
-	return initialized
 }
 
 // Debug logs a debug message
@@ -138,41 +132,4 @@ func Error(msg string, err error, fields ...map[string]interface{}) {
 	}
 
 	event.Msg(msg)
-}
-
-// Fatal logs a fatal message and exits the application
-func Fatal(msg string, err error, fields ...map[string]interface{}) {
-	// If logger is not initialized, just print to stderr and exit
-	if !initialized {
-		if err != nil {
-			os.Stderr.WriteString(msg + ": " + err.Error() + "\n")
-		} else {
-			os.Stderr.WriteString(msg + "\n")
-		}
-		os.Exit(1)
-	}
-
-	event := Logger.Fatal().Str("level", "fatal")
-
-	if err != nil {
-		event = event.Err(err)
-	}
-
-	if len(fields) > 0 && fields[0] != nil {
-		for k, v := range fields[0] {
-			event = event.Interface(k, v)
-		}
-	}
-
-	event.Msg(msg)
-}
-
-// Writer returns a writer that can be used to pipe logs
-func Writer(level zerolog.Level) io.Writer {
-	// Do nothing if logger is not initialized
-	if !initialized {
-		return os.Stdout
-	}
-
-	return Logger.Level(level)
 }

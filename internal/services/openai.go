@@ -91,11 +91,6 @@ The rationale for the change. Again, it should be 1-3 sentences, clear and conci
 	`, currentTitle, diffContent, currentTitle)
 }
 
-// GenerateMRDescription generates a description for a merge request using OpenAI with RAG
-func GenerateMRDescription(ctx context.Context, client *openai.Client, diff string) (string, error) {
-	return GenerateMRDescriptionWithOptions(ctx, client, diff, nil)
-}
-
 // GenerateMRDescriptionWithOptions generates a description with optional RAG override
 func GenerateMRDescriptionWithOptions(ctx context.Context, client *openai.Client, diff string, forceRAG *bool) (string, error) {
 	// Determine whether to use RAG
@@ -226,11 +221,6 @@ func generateMRDescriptionWithRAG(ctx context.Context, client *openai.Client, di
 	}
 
 	return resp.Choices[0].Message.Content, nil
-}
-
-// GenerateIssueDescription generates a description for an issue using OpenAI with RAG
-func GenerateIssueDescription(ctx context.Context, client *openai.Client, diff string, currentTitle string) (string, string, error) {
-	return GenerateIssueDescriptionWithOptions(ctx, client, diff, currentTitle, nil)
 }
 
 // GenerateIssueDescriptionWithOptions generates an issue description with optional RAG override

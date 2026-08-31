@@ -265,11 +265,6 @@ const (
 	RemoveLabel
 )
 
-// HandleLabelOperation handles adding or removing labels from an issue and updating status
-func HandleLabelOperation(operation LabelOperation, overrideLabel string) error {
-	return HandleLabelAndStatusOperation(operation, overrideLabel, "")
-}
-
 // HandleLabelAndStatusOperation handles adding or removing labels from an issue and updating status
 func HandleLabelAndStatusOperation(operation LabelOperation, overrideLabel string, overrideStatus string) error {
 	return HandleLabelAndStatusOperationWithUnready(operation, overrideLabel, overrideStatus, "")
