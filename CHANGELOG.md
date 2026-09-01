@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Test fixtures and `.tix.example.yml` no longer name an employer's internal GitLab
+  paths. The cross-repo reference in `internal/services/scm_test.go` is now
+  `example.com/engineering/platform/issues#225`, which keeps the host-qualified,
+  multi-level group shape those tests exist to exercise. The example config uses
+  `example-org/...` and `example.com/...`. No behaviour change.
 - `internal/browser` is gone. It was one 24-line function wrapping
   `github.com/pkg/browser` for a single caller, whose only additions were a Debug line and
   a Warn the call site already emits. `internal/services` now holds `pkg/browser` directly in
