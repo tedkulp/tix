@@ -78,8 +78,6 @@ homebrew_casks:
       - tix
     ids:
       - default
-    url:
-      verified: github.com/tedkulp/tix
     hooks:
       post:
         # The binary is not signed or notarized, so strip the quarantine
