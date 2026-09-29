@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `brew install`/`brew upgrade` no longer warns that the cask's `postflight` stanza is
+  deprecated. The Homebrew cask now clears the macOS quarantine attribute with Homebrew's
+  `postflight_steps` DSL instead of a Ruby `postflight` block.
+
 ## [0.10.3] - 2026-09-29
 
 ### Fixed

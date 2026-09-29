@@ -78,11 +78,14 @@ homebrew_casks:
       - tix
     ids:
       - default
-    hooks:
-      post:
-        # The binary is not signed or notarized, so strip the quarantine
-        # attribute Gatekeeper adds to downloaded artifacts.
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/tix"]
-          end
+    # The binary is not signed or notarized, so strip the quarantine
+    # attribute Gatekeeper adds to downloaded artifacts. Homebrew deprecated
+    # `postflight` (what hooks.post.install emits) for `postflight_steps`.
+    # ponytail: custom_block until GoReleaser ships hooks.post.install_steps
+    # (goreleaser/goreleaser#6873, v2.19), then move this there.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{" }}staged_path{{ "}}" }}/tix"]
+        end
+      end
